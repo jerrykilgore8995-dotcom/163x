@@ -6,7 +6,10 @@ from pathlib import Path
 import re
 import sys
 
-source, bias_file, dest = map(Path, sys.argv[1:])
+source, bias_file, dest = map(Path, sys.argv[1:4])
+quiet_rails = sys.argv[4:] == ["--quiet-rails"]
+if sys.argv[4:] and not quiet_rails:
+    raise ValueError("only --quiet-rails is supported as an option")
 top, subs, models, devices = [], {}, {}, []
 scales = dict(meg=1e6, t=1e12, g=1e9, k=1e3, m=1e-3, u=1e-6,
               n=1e-9, p=1e-12, f=1e-15)
@@ -136,6 +139,28 @@ def expand(lines, prefix="", mapping=None, parent=None):
 
 read(source/"163x.cir", True)
 expand(top)
+if quiet_rails:
+    # Both reference fixtures are available in tools/measure.py. For the
+    # real-time audio/control deck preserve all loading at TP4, with static
+    # rails and an algebraic readout of the ladder thresholds.
+    rail_parts = {"bmain","bmains","rprimary","cx","lpri","lsecondarya","lsecondaryb",
+                  "kta","ktb","kab","rsecondarya","rsecondaryb"}
+    board_power = {f"c{i}" for i in range(20,34)}
+    board_power |= {f"dcr{i}" for i in range(21,26)}
+    board_meter = {f"r{i}" for i in range(47,65)}
+    board_meter |= {f"dcr{i}" for i in range(8,21)}
+    board_meter |= {"q1","r66","rs1_2_4","rs1_4_6"}
+    def retain(part):
+        name=part[1]
+        if name in rail_parts or name.startswith(("xunit.xvr","xunit.xic3","xunit.xic4","xunit.xic5")):
+            return False
+        return name.removeprefix("xunit.") not in board_power | board_meter
+    devices=[part for part in devices if retain(part)]
+    devices.extend((
+        ("v","v_rail_positive",["xunit.vp15","0"],15.0),
+        ("v","v_rail_negative",["xunit.vn15","0"],-15.0),
+        ("r","meter_input_load",["xunit.tp4","xunit.vn15"],50e6/12),
+    ))
 used = {ctrl for k,_,_,d in devices if k in "fh" for ctrl in d[0]}
 known = {"0": (0,0)}
 known.update(src=(1,0),mains=(2,0))

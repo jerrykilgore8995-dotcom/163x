@@ -148,7 +148,11 @@ public:
         stampNonlinear<true>();
         if (!matrix.prepare()) return false;
         cacheNonlinearSlots();
-        prepareLinear();
+        retryMatrix=matrix;
+        prepareLinear(false);
+        std::swap(matrix,retryMatrix);
+        prepareLinear(true);
+        std::swap(matrix,retryMatrix);
 #if __has_include("GeneratedSolve.hpp")
         generatedResidual=findGeneratedResidual(rate);
 #endif
@@ -297,6 +301,7 @@ private:
         bool solved=false;
         // Advance physical time with backward Euler on the shorter steps.
         // The next host sample resumes BDF2 with history on the host grid.
+        std::swap(matrix,retryMatrix);
         for (int count : {2,4,8,16,32,64,128}) {
             restore();
             inverse=count*hostRate;
@@ -311,6 +316,7 @@ private:
             }
             if (solved) break;
         }
+        std::swap(matrix,retryMatrix);
         if (solved) visitHistory([](const History& save,double&,double& q2){q2=save.previous;});
         else restore();
         inverse=1.5*hostRate;
@@ -450,7 +456,7 @@ private:
         }
     }
 
-    void prepareLinear() {
+    void prepareLinear(bool variableStep) {
         const int n = deck.size;
         const int columns = n+static_cast<int>(fixed.size());
         std::vector<double> dense(n*columns,0.0);
@@ -498,8 +504,10 @@ private:
             for (int r : {a,b}) for (int c : {a,b}) mutableSlots.push_back(matrix.slot(r,c));
         };
         for (const auto& d : ratioResistors) capacitanceOrRatio(d.a,d.b);
-        for (const auto& d : deck.capacitors) capacitanceOrRatio(d.a,d.b);
-        for (const auto& d : deck.inductance) mutableSlots.push_back(matrix.slot(d.row,d.column));
+        if (variableStep) {
+            for (const auto& d : deck.capacitors) capacitanceOrRatio(d.a,d.b);
+            for (const auto& d : deck.inductance) mutableSlots.push_back(matrix.slot(d.row,d.column));
+        }
         for (const auto& d : deck.cubic)
             for (int row : {d.a,d.b}) mutableSlots.push_back(matrix.slot(row,d.control));
         for (const auto& d : deck.behavioral)
@@ -715,7 +723,7 @@ private:
 #endif
     std::vector<int> diodeStorage,bjtStorage;
     std::vector<double> constantRhs,sampleRhs;
-    Sparse matrix;
+    Sparse matrix,retryMatrix;
     std::vector<double> x,previous,fixed,savedNodes;
     std::vector<History> savedHistory;
     double inverse=0,history1=0,history2=0;

@@ -19,7 +19,7 @@ jobs:
           python -m pip install numpy
           python tools/prepare_models.py
           python tools/native_seed.py build/seed.raw
-          python native/compile_deck.py circuit build/seed.raw build/Deck.hpp
+          python native/compile_deck.py circuit build/seed.raw build/Deck.hpp --quiet-rails
       - uses: actions/upload-artifact@v4
         with:
           name: compiled-circuit

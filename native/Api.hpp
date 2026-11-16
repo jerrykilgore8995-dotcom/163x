@@ -27,9 +27,10 @@ struct Api {
 };
 constexpr std::uint32_t apiVersion=1;
 
-// Keep one complete block of reserve after the block currently being filled.
+// Allow one extra block at 512 for the brief extra work at sharp transients.
 constexpr int playbackLatency(int hostBlock) {
     if (hostBlock<=256) return 512;
+    if (hostBlock<=512) return 1536;
     if (hostBlock>=4096) return 8192;
     return 2*hostBlock;
 }

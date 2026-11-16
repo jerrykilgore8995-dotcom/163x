@@ -661,7 +661,7 @@ private:
             double maxNode=0, maxBranch=0;
             for (int i=0;i<deck.nodes;++i) maxNode=std::max(maxNode,std::abs(matrix.x[i]));
             for (int i=deck.nodes;i<deck.size;++i) maxBranch=std::max(maxBranch,std::abs(matrix.x[i]));
-            if (maxNode<0.028 && maxBranch<0.000080) {
+            if (maxNode<0.055 && maxBranch<0.00011) {
                 const auto delta=[&](int n){return n<0?0:matrix.x[n];};
                 for (int i=0;i<deck.size;++i) x[i]+=matrix.x[i];
                 for (const int at : diodeStorage) {

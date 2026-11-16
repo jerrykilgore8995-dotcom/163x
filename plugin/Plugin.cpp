@@ -86,7 +86,7 @@ private:
         layout.add(std::make_unique<juce::AudioParameterFloat>(
             juce::ParameterID{"compression",1},"Compression",juce::NormalisableRange<float>{0,1,0.0001f},0.45f));
         layout.add(std::make_unique<juce::AudioParameterFloat>(
-            juce::ParameterID{"level",1},"Level Set",juce::NormalisableRange<float>{-30,10,0.01f},-10));
+            juce::ParameterID{"level",1},"Level Set",juce::NormalisableRange<float>{-30,10,0.01f},-10.0f));
         return layout;
     }
 
@@ -152,7 +152,7 @@ public:
             g.setFont(juce::Font(juce::FontOptions(size,juce::Font::bold)));
             g.drawText(text,x,y,width,height,juce::Justification::centred);
         };
-        label("163X",21,80,114,40,34);
+        label("163X",23,101,102,31,29);
         label("STEREO",133,49,74,12,11);
         label("SLAVE",133,60,74,12,11);
         label("POWER",133,94,74,12,11);
@@ -167,13 +167,27 @@ public:
         for (int i=0;i<12;++i) {
             const int x=241+28*i;
             label("-"+juce::String(marks[i]),x,17,28,14,12);
-            g.setColour(reduction>=marks[i]?juce::Colour(0xffff3b2c):juce::Colour(0xff351a1c));
-            g.fillRoundedRectangle(float(x+2),40,23,12,1);
+            const bool lit=reduction>=marks[i];
+            const auto lens=juce::Rectangle<float>(float(x+2),40,23,12);
+            g.setGradientFill({juce::Colour(lit?0xffff5645:0xff3f2023),0,40,
+                               juce::Colour(lit?0xffb41d17:0xff200f12),0,52,false});
+            g.fillRoundedRectangle(lens,1);
+            g.setColour(juce::Colour(lit?0xfff88774:0xff4b292b));
+            g.drawHorizontalLine(41,lens.getX()+2,lens.getRight()-2);
         }
         label("COMPRESSION",341,57,137,14,12);
         g.setColour(letters);
-        for (int i=0;i<17;++i)
-            g.fillRect(286+11*i,112,9,13-i/2);
+        for (int i=0;i<17;++i) {
+            const float x=286.0f+11.0f*i;
+            const float height=14.0f-0.63f*i;
+            juce::Path mark;
+            mark.startNewSubPath(x,111);
+            mark.lineTo(x+9,111);
+            mark.lineTo(x+9,110+height);
+            mark.lineTo(x,111+height);
+            mark.closeSubPath();
+            g.fillPath(mark);
+        }
         label("MORE >",465,110,66,15,12);
         label("LEVEL SET",613,16,94,16,12);
         label("-10",635,35,50,14,11);
@@ -181,17 +195,28 @@ public:
         label("0",680,61,33,14,11);
         label("-30",600,111,45,14,11);
         label("+10",681,111,41,14,11);
+        for (int i=0;i<9;++i) {
+            const float angle=-2.26f+4.52f*i/8;
+            const juce::Point<float> direction(std::sin(angle),-std::cos(angle));
+            const juce::Point<float> center(660,84.5f);
+            g.drawLine({center+direction*26.0f,center+direction*(i%2==0?36.0f:32.0f)},1.3f);
+        }
         label("HI-Z",718,16,85,13,11);
         label("INPUT",718,29,85,13,11);
         g.setColour(juce::Colour(0xff121214));
         g.fillEllipse(735,58,53,53);
+        juce::Path nut;
+        nut.addPolygon({761.5f,84.5f},6,22.5f,0.0f);
+        g.setGradientFill({juce::Colour(0xffeee6d6),749,62,
+                           juce::Colour(0xff8d857b),776,101,false});
+        g.fillPath(nut);
         g.setColour(juce::Colour(0xffc1b9aa));
-        g.drawEllipse(740,63,43,43,4);
+        g.drawEllipse(744,67,35,35,3);
+        g.setColour(juce::Colour(0xff100f12));
+        g.fillEllipse(747,70,29,29);
         g.setColour(juce::Colour(0xff5b564f));
         g.drawEllipse(744,67,35,35,1.5f);
         label("OVER EASY COMPRESSOR/LIMITER",250,145,325,17,13);
-        if (processor.failed.load())
-            label("Circuit processing interrupted",602,145,220,17,11);
     }
 
 private:

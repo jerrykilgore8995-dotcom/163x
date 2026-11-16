@@ -68,6 +68,18 @@ jobs:
           assert 120 <= timing[-1]["mid_release_dB_per_s"] <= 130
           print(f"Hi-Z range, {impedance:.2f} ohm output impedance, distortion, and deep release passed")
           PY
+      - name: Measure maximum compression ratio
+        run: |
+          python tools/measure.py --level-set .5 --case 1 8.213967 --case 1 10.213967 --case 1 12.213967 --case 1 13.213967 --case 1 14.213967 --case 1 15.213967 --case 1 16.213967 --case 1 17.213967 --case 1 18.213967 --case 1 19.213967 --case 1 20.213967 --output measurements/max-ratio.json
+          python - <<'PY'
+          import json, math
+          rows=json.load(open("measurements/max-ratio.json"))
+          for a,b in zip(rows,rows[1:]):
+              dx=b["input_dBu"]-a["input_dBu"]
+              dy=b["output_dBu"]-a["output_dBu"]
+              expected=2*math.sqrt(2)*.775*10**(b["input_dBu"]/20)
+              print(f'{a["input_dBu"]-2.213967:.1f} to {b["input_dBu"]-2.213967:.1f} dBV: ratio={dx/dy if dy else float("inf"):.3f}:1, output change={dy:.6f} dB, THD={b["THD_K2_K20_pct"]:.5f}%, preamp peak-to-peak={b["tp1_peak_to_peak_V"]:.4f} V, relative preamp gain={20*math.log10(b["tp1_peak_to_peak_V"]/expected):.4f} dB')
+          PY
       - uses: actions/upload-artifact@v4
         if: always()
         with:

@@ -85,12 +85,17 @@ print onoise_total inoise_total
 def simulate(args, slider, dbu, mains):
     peak = REFERENCE * np.sqrt(2) * 10 ** (dbu / 20)
     body = bench_deck(args, peak, slider, mains)
+    max_step = min(10e-6, 0.02 / args.frequency)
+    if max_step < 10e-6:
+        # Regularize the nanosecond DC-to-transient transition in the op amp
+        # macros. One femtofarad per node is a fixture setting, not a board cap.
+        body += ".options cshunt=1f\n"
     start = 0.36 if mains else 0.42
     window = max(4, round(0.10 * args.frequency)) / args.frequency
     duration = start + window + 1 / ANALYSIS_RATE
     data, _ = run_spice(args, body, f"""
 save {NODES}
-tran 10u {duration:.10g} {start - 0.00005:.10g} 10u
+tran {max_step:.9g} {duration:.10g} {start - 0.00005:.10g} {max_step:.9g}
 wrdata trace.txt {NODES}
 """)
     if data[-1, 0] < start + window:

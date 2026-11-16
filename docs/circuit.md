@@ -47,6 +47,10 @@ These results are from the connected SPICE model with the 2180B. They describe t
 | TP6 at −10 dBV, 1 kHz | About −0.33 mV after setting R25 and choosing the detector's 120 mV reference within the NEC datasheet spread. |
 | TP11 at −10 dBV, 50 Hz | About 92 mVpp. This exceeds the factory tolerance of 55–85 mVpp. |
 | 0 dBV, 1 kHz, midpoint Compression | 0.035% K2–K20 THD in the clean-rail fixture. Factory limit 0.08%. |
+| 0 dBV, 40 Hz, midpoint Compression | 0.202% K2–K20 THD in the clean-rail fixture. Factory limit 0.25%. |
+| 0 dBV, 10 kHz, midpoint Compression | 0.062% K2–K20 THD in the clean-rail fixture. Factory limit 0.10%. The short-step fixture uses 1 fF of numerical shunt per node to initialize the op-amp macros. |
+| Level Set endpoints, maximum Compression | −24.19 and +8.10 dBV for the factory −10 dBV input. Both are within their respective factory tolerances. |
+| Slope at maximum Compression | About 12.2:1 on the final +10 to +14 dBV segment of the 1 kHz clean-rail sweep at midpoint Level Set. The circuit trends toward limiting and these points still show finite slope. |
 | Small-signal frequency response | −0.23 dB at 20 Hz and −0.27 dB at 20 kHz relative to 1 kHz. A driven sweep at both Compression extremes is still needed. |
 | Modeled quiet-rail noise | −97.8 dBV output, 20 Hz–20 kHz, minimum Compression and midpoint Level Set. The vendor macros do not cover all physical device or transformer noise, so the result cannot establish hardware noise parity. |
 | Attack at 10/20/30 dB input steps | 18/8/4 ms to 63% of measured gain change, Compression at 0.85. |

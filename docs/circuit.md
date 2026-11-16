@@ -51,10 +51,11 @@ These results are from the connected SPICE model with the 2180B. They describe t
 | TP11 at −10 dBV, 50 Hz | 84.6 mVpp after timing calibration. The factory tolerance is 55–85 mVpp. |
 | 0 dBV, 1 kHz, midpoint Compression | 0.019% K2–K20 THD in the clean-rail fixture. Factory limit 0.08%. |
 | 0 dBV, 40 Hz, midpoint Compression | 0.244% K2–K20 THD in the clean-rail fixture. Factory limit 0.25%. |
-| 0 dBV, 10 kHz, midpoint Compression | 0.062% K2–K20 THD in the clean-rail fixture. Factory limit 0.10%. The short-step fixture uses 1 fF of numerical shunt per node to initialize the op-amp macros. |
+| 0 dBV, 10 kHz, midpoint Compression | 0.046% K2–K20 THD in the clean-rail fixture. Factory limit 0.10%. The short-step fixture uses 1 fF of numerical shunt per node to initialize the op-amp macros. |
 | Level Set endpoints, maximum Compression | −24.19 and +8.10 dBV for the factory −10 dBV input. Both are within their respective factory tolerances. |
-| Slope at maximum Compression | About 19.6:1 on the final +10 to +14 dBV segment of the 1 kHz clean-rail sweep at midpoint Level Set. The circuit trends toward limiting and these points still show finite slope. |
-| Small-signal frequency response | −0.23 dB at 20 Hz and −0.27 dB at 20 kHz relative to 1 kHz. A driven sweep at both Compression extremes is still needed. |
+| Slope at maximum Compression | About 19.7:1 on the final +10 to +14 dBV segment of the 1 kHz clean-rail sweep at midpoint Level Set. The circuit trends toward limiting and these points still show finite slope. |
+| Small-signal frequency response | −0.23 dB at 20 Hz and −0.27 dB at 20 kHz relative to 1 kHz. The driven 0 dBV comparison gave −0.28 dB at 20 kHz at both Compression extremes. |
 | Modeled quiet-rail noise | −97.8 dBV output, 20 Hz–20 kHz, minimum Compression and midpoint Level Set. The vendor macros do not cover all physical device or transformer noise, so the result cannot establish hardware noise parity. |
 | Attack at 10/20/30 dB input steps | 16/6/3 ms to 63% of measured gain change, Compression at 0.85. |
+| Factory gain-reduction lamps | 4 lit at −30 dBV with Compression at maximum, 3 lit at +10 dBV with Compression at minimum, and all 12 lit at +10 dBV with Compression at maximum. The first two checks allow 3 ±1 lamps. |
 | Mid-release at 10/20/30 dB input steps | 94/117/122 dB/s on the return to the lower tone. The 30 dB step followed by silence measured 125.1 dB/s in the same mid-release region. |

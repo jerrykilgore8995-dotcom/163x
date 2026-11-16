@@ -62,13 +62,27 @@ inline Jet junction(Jet volts, double emissionVoltage, double saturation) {
     return {saturation*(exp*(1 + x-limited)-1), slope*volts.p, slope*volts.q};
 }
 
-inline Jet capacitance(Jet volts, double zero, double potential, double exponent, double fc) {
+template<double exponent>
+const auto junctionPowerTable=[] {
+    std::array<double,8193> data{};
+    for (std::size_t i=0;i<data.size();++i) data[i]=std::pow(0.5+double(i)/256,-exponent);
+    return data;
+}();
+
+template<double exponent>
+inline Jet capacitance(Jet volts, double zero, double potential, double fc) {
     if (zero == 0) return {0};
     const double knee = potential*fc;
     double value, slope;
     if (volts.value < knee) {
         const double x = 1-volts.value/potential;
-        const double m = std::pow(x,-exponent);
+        const double index=(x-0.5)*256;
+        double m;
+        if (index>=0 && index<8192) {
+            const int slot=static_cast<int>(index);
+            const auto& data=junctionPowerTable<exponent>;
+            m=data[slot]+(index-slot)*(data[slot+1]-data[slot]);
+        } else m=std::pow(x,-exponent);
         value = potential*zero*(1-x*m)/(1-exponent);
         slope = zero*m;
     } else {
@@ -128,17 +142,17 @@ public:
         for (auto& entry : guesses) entry.nodes=x;
         nextGuess=0;
         guessCount=0;
-        previousMakeup=0.5;
+        previousLevel=0.5;
         smoothedMore=0.45;
         smoothedLevel=0.5;
         smoothing=-std::expm1(-1/(0.008*rate));
         fixed.resize(deck.constants.size());
         samples=0;
-        supply(0,0.45,1,0.5);
+        hostRate=rate;
+        supply(0,0.45,0.5);
         matrix.resize(deck.size);
         // Include the transient structure in the symbolic factorization.
         // The actual initial solve below uses zero integration conductance.
-        hostRate=rate;
         inverse = 1.5*rate;
         history1 = -2.0*rate;
         history2 = 0.5*rate;
@@ -171,13 +185,13 @@ public:
     double step(double input, double more, double level) {
         smoothedMore+=smoothing*(more-smoothedMore);
         smoothedLevel+=smoothing*(level-smoothedLevel);
-        const double threshold=smoothedMore, ratio=1.0, makeup=smoothedLevel;
+        const double slider=smoothedMore, levelSet=smoothedLevel;
         ++samples;
         const auto* seed=&previous;
         const Guess* low=nullptr;
         const Guess* high=nullptr;
         double error=std::abs(input-lastInput);
-        const bool sameControls=threshold==lastThreshold && ratio==lastRatio && makeup==previousMakeup;
+        const bool sameControls=slider==lastSlider && levelSet==previousLevel;
         if (!sameControls) {
             guessCount=0;
             nextGuess=0;
@@ -195,7 +209,7 @@ public:
                 if (g.input>=input && (!high || g.input<high->input)) high=&g;
             }
         }
-        supply(input,threshold,ratio,makeup);
+        supply(input,slider,levelSet);
         prepareHistory();
         if (low && high && high->input>low->input && high->input-low->input<0.16) {
             const double w=(input-low->input)/(high->input-low->input);
@@ -209,24 +223,23 @@ public:
             if (++nextGuess==static_cast<int>(guesses.size())) nextGuess=0;
             guessCount=std::min(guessCount+1,static_cast<int>(guesses.size()));
         }
-        if (newton(12,0.16) || continueSource(input,threshold,ratio,makeup)) {
+        if (newton(12,0.16) || continueSource(input,slider,levelSet)) {
             accept(false);
             lastInput=input;
-        } else if (retry(input,threshold,ratio,makeup)) {
+        } else if (retry(input,slider,levelSet)) {
             lastInput=input;
             ++subdivisions;
         } else {
             std::copy(previous.begin(),previous.end(),x.begin());
             ++misses;
         }
-        previousMakeup=makeup;
+        previousLevel=levelSet;
         return x[deck.out]/fullScalePeakVolts;
     }
 
     double controlVolts() const { return x[deck.control]; }
     double levelVolts() const { return x[deck.level]; }
-    // RCTL transforms the filtered detector voltage before summing VMAKE.
-    // Read the detector contribution while it is still independent of makeup.
+    // Read the gain-reduction display driver at TP4, upstream of Level Set.
     double gainReductionDb() const { return std::max(0.0,x[deck.meter]/0.024); }
     bool aboveThreshold() const { return gainReductionDb()>0.5; }
     int operations() const { return matrix.operationCount(); }
@@ -273,13 +286,13 @@ private:
         for (const auto& d : deck.inductance) sampleRhs[d.row]+=history1*d.q1+history2*d.q2;
     }
 
-    bool continueSource(double input,double threshold,double ratio,double makeup) {
+    bool continueSource(double input,double slider,double levelSet) {
         // Try a numerical continuation before changing the time integration.
         for (int count : {2,4,8}) {
             std::copy(previous.begin(),previous.end(),x.begin());
             int i=1;
             for (;i<=count;++i) {
-                supply(std::lerp(lastInput,input,static_cast<double>(i)/count),threshold,ratio,makeup);
+                supply(std::lerp(lastInput,input,static_cast<double>(i)/count),slider,levelSet);
                 // Moving the source also changes the known-voltage
                 // contributions to the linear residual.
                 prepareHistory();
@@ -290,7 +303,7 @@ private:
         return false;
     }
 
-    bool retry(double input,double threshold,double ratio,double makeup) {
+    bool retry(double input,double slider,double levelSet) {
         std::copy(previous.begin(),previous.end(),savedNodes.begin());
         visitHistory([](History& save,double& q1,double& q2){save={q1,q2};});
         const auto restore=[&] {
@@ -309,7 +322,7 @@ private:
             history2=0;
             solved=true;
             for (int i=1;i<=count;++i) {
-                supply(std::lerp(lastInput,input,static_cast<double>(i)/count),threshold,ratio,makeup);
+                supply(std::lerp(lastInput,input,static_cast<double>(i)/count),slider,levelSet);
                 prepareHistory();
                 if (!newton(14,0.16)) {solved=false;break;}
                 accept(false);
@@ -365,9 +378,8 @@ private:
         for (auto& d : deck.jfets) assign(d.slots,std::array{d.d,d.g,d.s});
     }
 
-    void supply(double input,double more,double unusedRatio,double level) {
-        lastThreshold=more;
-        lastRatio=unusedRatio;
+    void supply(double input,double more,double level) {
+        lastSlider=more;
         const double m=std::clamp(more,0.00001,0.99999);
         const double l=std::clamp(level,0.00001,0.99999);
         potConductance={1/(50000*(1-m)),1/(50000*m),
@@ -462,7 +474,7 @@ private:
         std::vector<double> dense(n*columns,0.0);
         constantRhs.assign(n,0);
         sampleRhs.resize(n);
-        ratioResistors.clear();
+        variableResistors.clear();
         terms.clear();
         knownTerms.clear();
         linearRows.clear();
@@ -484,7 +496,7 @@ private:
             if (b>=0) constantRhs[b]+=i;
         };
         for (const auto& d : deck.resistors) {
-            if (d.pot) ratioResistors.push_back(d);
+            if (d.pot) variableResistors.push_back(d);
             else branch(d.a,d.b,d.a,d.b,d.conductance);
         }
         for (const auto& d : deck.capacitors) branch(d.a,d.b,d.a,d.b,inverse*d.value);
@@ -500,12 +512,12 @@ private:
         for (const auto& d : deck.diodes) mutableSlots.insert(mutableSlots.end(),d.slots.begin(),d.slots.end());
         for (const auto& d : deck.bjts) mutableSlots.insert(mutableSlots.end(),d.slots.begin(),d.slots.end());
         for (const auto& d : deck.jfets) mutableSlots.insert(mutableSlots.end(),d.slots.begin(),d.slots.end());
-        const auto capacitanceOrRatio=[&](int a,int b) {
+        const auto twoTerminal=[&](int a,int b) {
             for (int r : {a,b}) for (int c : {a,b}) mutableSlots.push_back(matrix.slot(r,c));
         };
-        for (const auto& d : ratioResistors) capacitanceOrRatio(d.a,d.b);
+        for (const auto& d : variableResistors) twoTerminal(d.a,d.b);
         if (variableStep) {
-            for (const auto& d : deck.capacitors) capacitanceOrRatio(d.a,d.b);
+            for (const auto& d : deck.capacitors) twoTerminal(d.a,d.b);
             for (const auto& d : deck.inductance) mutableSlots.push_back(matrix.slot(d.row,d.column));
         }
         for (const auto& d : deck.cubic)
@@ -546,7 +558,7 @@ private:
             current(d.row,-1,-d.value*delta*v(d.column));
             derivatives(d.row,-1,d.column,-1,-d.value*delta);
         }
-        for (const auto& d : ratioResistors) conduct(d.a,d.b,potConductance[d.pot-1]);
+        for (const auto& d : variableResistors) conduct(d.a,d.b,potConductance[d.pot-1]);
         stampBehavior();
         stampNonlinear<false>();
     }
@@ -565,7 +577,7 @@ private:
             double g=i.p+gmin;
             if constexpr (m.cjo!=0 || m.tt!=0) {
                 if constexpr (sizing) diodeStorage.push_back(at);
-                const Jet q=capacitance(voltage,m.cjo,m.vj,m.m,m.fc)+i*m.tt;
+                const Jet q=capacitance<m.m>(voltage,m.cjo,m.vj,m.fc)+i*m.tt;
                 d.q=q.value;
                 d.slope=q.p;
                 j+=inverse*d.q+history1*d.q1+history2*d.q2;
@@ -601,7 +613,7 @@ private:
                     d.sign=sign;
                 }
                 if constexpr (m.cje!=0 || m.tf!=0) {
-                    Jet qf=capacitance(be,m.cje,m.vje,m.mje,m.fc);
+                    Jet qf=capacitance<m.mje>(be,m.cje,m.vje,m.fc);
                     if (m.tf && be.value>0) qf=qf+f*baseCharge*m.tf;
                     d.f=qf.value;
                     d.fq=qf;
@@ -609,7 +621,7 @@ private:
                     ibf.value+=history1*d.f1+history2*d.f2;
                 }
                 if constexpr (m.cjc!=0 || m.tr!=0) {
-                    const Jet qr=capacitance(bc,m.cjc,m.vjc,m.mjc,m.fc)+r*m.tr;
+                    const Jet qr=capacitance<m.mjc>(bc,m.cjc,m.vjc,m.fc)+r*m.tr;
                     d.r=qr.value;
                     d.rq=qr;
                     ibr=ibr+qr*inverse;
@@ -712,7 +724,7 @@ private:
 
     struct Term { int column; double g; };
     Circuit deck;
-    std::vector<R> ratioResistors;
+    std::vector<R> variableResistors;
     std::vector<Term> terms;
     struct KnownTerm {int row,column;double g;};
     struct LinearRow {int row,begin,end;};
@@ -729,12 +741,12 @@ private:
     double inverse=0,history1=0,history2=0;
     std::array<double,4> potConductance{};
     std::uint64_t samples=0;
-    double lastThreshold=0,lastRatio=0,thresholdVolts=0,lastInput=0;
+    double lastSlider=0,lastInput=0;
     double hostRate=0;
     struct Guess {std::vector<double> nodes;double input=0;};
     std::array<Guess,8> guesses;
     int nextGuess=0,guessCount=0;
-    double previousMakeup=0;
+    double previousLevel=0;
     double smoothedMore=0.45,smoothedLevel=0.5,smoothing=0;
     unsigned misses=0,subdivisions=0;
 };

@@ -1,0 +1,7 @@
+# 163X native Windows VST3
+
+Install the complete `163X.vst3` bundle. The runtime is an in-process modified nodal solver and targets Windows x64 with AVX2. ngspice is used to seed and compare the compiled circuit during development and build verification. Audio uses one independent circuit per channel, with the rear line input as its electrical entry point.
+
+The compiler flattens the 163X SPICE audio and control network, including the OverEasy circuit, RMS timing network, discrete diodes, op-amp and THAT2180B macromodels. The real-time profile sets the regulated rails to ±15 V and models the display load at TP4. The full powered board, physical meter circuit and strapping connections remain in the standalone SPICE reference. The plug-in uses the two front-panel controls with the signal-dependent soft knee from the circuit. The front Hi-Z jack and stereo-slave indicator are drawn as on the unit. Plug-in stereo presently processes dual mono.
+
+The output uses a sample-rate-dependent correction shelf after the nodal solve to match the continuous-time reference's high-frequency response. It has no extra buffering. At 44.1 kHz with a 512-sample host block the worker pipeline reports 1,024 samples. The Windows workflow compares level and THD at 1 kHz, checks frequency response, and verifies mono and stereo playback against the unpaced solver. Each release ZIP includes the editor capture and the measured data.

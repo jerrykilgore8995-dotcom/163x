@@ -20,10 +20,15 @@ jobs:
           python tools/prepare_models.py
           python tools/native_seed.py build/seed.raw
           python native/compile_deck.py circuit build/seed.raw build/Deck.hpp --quiet-rails
+          python tools/measure.py --case 0 -1.1721462968 --case .45 -1.1721462968 --case 1 -1.1721462968 --output build/spice.json
+          python tools/measure.py --small-signal --output build/ac.json
       - uses: actions/upload-artifact@v4
         with:
           name: compiled-circuit
-          path: build/Deck.hpp
+          path: |
+            build/Deck.hpp
+            build/spice.json
+            build/ac.json
 
   windows:
     needs: deck
@@ -48,7 +53,14 @@ jobs:
           g++ -std=c++20 -O2 -march=x86-64-v3 -I build/deck native/GenerateSolve.cpp -o build/generate.exe
           build/generate.exe build/kernel/GeneratedSolve.hpp
           g++ -std=c++20 -O3 -march=x86-64-v3 -pthread -I build/deck -I build/kernel -shared -static native/Runtime.cpp -o build/163x-native.dll
-          g++ -std=c++20 -O3 -march=x86-64-v3 -pthread -I build/deck -I build/kernel native/Probe.cpp -o build/probe.exe
+          g++ -std=c++20 -O3 -march=x86-64-v3 -I build/deck -I build/kernel native/ToneProbe.cpp -o build/tones.exe
+          build/tones.exe > build/native.csv
+          python tools/verify_native.py build/native.csv build/deck/spice.json build/deck/ac.json
+      - uses: actions/cache@v4
+        with:
+          path: build-plugin
+          key: 163x-vst3-juce-v1-${{ github.sha }}
+          restore-keys: 163x-vst3-juce-v1-
       - name: Build the VST3 and editor
         shell: pwsh
         run: |
@@ -68,7 +80,7 @@ jobs:
           if ($process.ExitCode -ne 0) { exit $process.ExitCode }
           New-Item -ItemType Directory -Force release | Out-Null
           Copy-Item $bundle release -Recurse
-          Copy-Item 163X-faceplate.png,smoke-out.txt release
+          Copy-Item 163X-faceplate.png,smoke-out.txt,build/native.csv,build/deck/spice.json,build/deck/ac.json,native/README.md release
       - uses: actions/upload-artifact@v4
         with:
           name: 163X-0.1-Windows-x64-VST3

@@ -2,6 +2,7 @@
 
 #include "Circuit.hpp"
 #include "Api.hpp"
+#include "OutputResponse.hpp"
 
 #include <array>
 #include <atomic>
@@ -40,6 +41,7 @@ public:
         for (int i=0;i<channels;++i) {
             auto& v=voices[i];
             if (!v.solver.prepare(rate) || !v.prepareWake()) return false;
+            v.outputResponse.prepare(rate);
             v.written.store(0,std::memory_order_relaxed);
             v.completed.store(0,std::memory_order_relaxed);
             v.failed.store(0,std::memory_order_relaxed);
@@ -200,7 +202,7 @@ private:
                     const auto& k=s.settings;
                     auto& out=output[next&(capacity-1)];
                     const auto wet=solver.step(s.value,k.compression,k.levelSet);
-                    out.value=static_cast<float>(wet);
+                    out.value=static_cast<float>(outputResponse.process(wet));
                     out.gainReductionDb=static_cast<float>(solver.gainReductionDb());
                     out.aboveThreshold=solver.aboveThreshold();
                 }
@@ -209,6 +211,7 @@ private:
             }
         }
         Solver solver;
+        OutputResponse outputResponse;
         std::array<Input,capacity> input{};
         std::array<Output,capacity> output{};
         alignas(64) std::atomic<std::uint64_t> written{0};

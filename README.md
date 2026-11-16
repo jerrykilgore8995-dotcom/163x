@@ -16,4 +16,4 @@ python3 tools/measure.py --timing --output measurements/timing.json
 
 The mains fixture runs the transformer, rectifier and regulators and measures after its precharge disconnects. The transfer fixture uses clean DC at both reservoirs so supply ripple is excluded from the harmonic measurement. The source is the rear input with 100 Ω source impedance and a 10 kΩ load on the output.
 
-No qualified real-time VST3 is published yet.
+The real-time Windows VST3 builds and runs its playback checks in [163X native Windows VST3](https://github.com/jerrykilgore8995-dotcom/163x/actions/workflows/native.yml). See [native build notes](native/README.md) for its circuit and host setup.

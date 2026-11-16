@@ -1,0 +1,37 @@
+name: 163X SPICE measurements
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  reference:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install reference dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ngspice poppler-utils
+          python -m pip install numpy
+          python tools/prepare_models.py
+      - name: Measure AC response and modeled noise
+        run: python tools/measure.py --small-signal --output measurements/ac-noise.json
+      - name: Check the powered board
+        run: python tools/measure.py --mains --output measurements/mains.json
+      - name: Check detector calibration and 1 kHz distortion
+        run: |
+          python tools/measure.py --level-set .75 --case .5 -7.786033 --case .5 2.213967 --output measurements/factory-1k.json
+      - name: Measure gain-reduction timing
+        run: python tools/measure.py --timing --output measurements/timing.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: 163X-SPICE-measurements
+          path: measurements
+          if-no-files-found: error

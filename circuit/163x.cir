@@ -1,0 +1,32 @@
+dbx 163X with THAT2180B retrofit, 115 V mains version
+.include vendor/LF353.MOD
+.include vendor/NE5534.301
+.include vendor/NJM4558.lib
+.include vendor/2180_Macro_01.lib
+.include device-models.inc
+.include 163x-board.inc
+
+* Source and output load are bench conditions, outside the unit.
+.param AMP=0.1 FREQ=1000 SLIDE=0.45 OUTPUT=0.5
+VIN SRC_REF 0 DC 0 AC 1
+BSIGNAL SRC SRC_REF V={AMP*sin(6.283185307179586*FREQ*time)*tanh(100*time)^2}
+RSOURCE SRC REAR 100
+RFRONT FRONT 0 1meg
+RLOAD OUT 0 10k
+
+* Isolated center tapped winding for the drawing's 115V option.
+* The service sheet does not publish winding resistances or inductance.
+BMAINS MAINS 0 V={162.6345597*sin(376.99111843*time)*tanh(30*time)^2}
+RPRIMARY MAINS PRI 40
+CX PRI 0 4.7n
+LPRI PRI 0 30
+LSECONDARYA AX 0 0.762
+LSECONDARYB 0 BX 0.762
+KTA LPRI LSECONDARYA 0.999
+KTB LPRI LSECONDARYB 0.999
+KAB LSECONDARYA LSECONDARYB 0.999
+RSECONDARYA AX VA 3
+RSECONDARYB BX VB 3
+XUNIT FRONT REAR OUT J4_T J4_R VA VB DBX163X params: MORE={SLIDE} LEVEL={OUTPUT}
+.options reltol=1e-3 abstol=1e-10 vntol=1e-5 method=gear
+.end

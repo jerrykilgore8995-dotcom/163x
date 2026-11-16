@@ -8,8 +8,10 @@ Install Python 3, NumPy, ngspice (with XSPICE) and Poppler's `pdftotext`. Run:
 
 ```sh
 python3 tools/prepare_models.py
+python3 tools/measure.py --small-signal --output measurements/ac-noise.json
 python3 tools/measure.py --mains --output measurements/mains.json
 python3 tools/measure.py --output measurements/transfer.json
+python3 tools/measure.py --timing --output measurements/timing.json
 ```
 
 The mains fixture runs the transformer, rectifier and regulators and measures after its precharge disconnects. The transfer fixture uses clean DC at both reservoirs so supply ripple is excluded from the harmonic measurement. The source is the rear input with 100 Ω source impedance and a 10 kΩ load on the output.

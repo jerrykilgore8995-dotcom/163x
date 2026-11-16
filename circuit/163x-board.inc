@@ -28,7 +28,8 @@ C1 IN 0 120p
 R1 IN IN_AC 1k
 C2 IN_AC OA1P 100n
 R2 OA1P 0 390k
-R3 J1R R4TOP 47k
+* The 1995 board identifies this corresponding resistor as 4.7 kΩ.
+R3 J1R R4TOP 4.7k
 R4A R4TOP OA1M {47k*(1-wiper(HIZTRIM))}
 R4B OA1M TP1 {47k*wiper(HIZTRIM)}
 C3 VP15 0 10n
@@ -39,6 +40,9 @@ R6 TAP ZCLAMP 2.2k
 DCR1 ZMID ZCLAMP RD9V1EB2
 DCR2 ZMID 0 RD9V1EB2
 * Audio path; pin 4 is unconnected on the pretrimmed 2180B.
+* The voltage and current sources transform control voltage and loading.
+* NEC uPC1252HA2: 5.9 mV/dB typical. THAT2180B: 6.1 mV/dB typical.
+.param VCA_CONTROL_SCALE={6.1/5.9}
 C5 TAP VCA_AC 3.3u
 R7 VCA_AC VCA_IN 18k
 R8 TP2 ECPLUS 80.6
@@ -49,12 +53,15 @@ R11B R11W VN15 {47k*wiper(VCATRIM)}
 R12 ECPLUS 0 49.9
 R13 VCA_VEE VN15 5.6k
 C34 ECPLUS 0 1n
-XIC1 VCA_IN ECPLUS 0 VCA_VEE 0 VP15 VCA_IO THAT2180B
+EVC_CTRL VCA_DRIVE 0 ECPLUS 0 {VCA_CONTROL_SCALE}
+VVC_SENSE VCA_DRIVE VCA_EC 0
+FVC_LOAD ECPLUS 0 VVC_SENSE {VCA_CONTROL_SCALE}
+XIC1 VCA_IN VCA_EC 0 VCA_VEE 0 VP15 VCA_IO THAT2180B
 R14 VCA_IO OUT_FB 20k
 R15 OA2P 0 20k
 R16 OA2O OUT_FB 22
-* The unlabeled zigzag to the output tip has no resistance specified.
-VJ3 OUT_FB J3T 0
+* The 1995 board labels the corresponding out-of-loop resistor R42, 22 Ω.
+R_OUT OUT_FB J3T 22
 C6 VCA_IO OA2O 100p
 C7 OA2_COMP8 OA2_COMP5 100p
 C8 VP15 0 10n

@@ -27,8 +27,47 @@ jobs:
       - name: Check detector calibration and 1 kHz distortion
         run: |
           python tools/measure.py --level-set .75 --case .5 -7.786033 --case .5 2.213967 --output measurements/factory-1k.json
+      - name: Measure frequency-dependent distortion
+        run: |
+          python tools/measure.py --frequency 40 --level-set .75 --case .5 2.213967 --output measurements/factory-40.json
+          python tools/measure.py --frequency 10000 --level-set .75 --case .5 2.213967 --output measurements/factory-10k.json
+      - name: Measure corrected input and output circuits
+        run: |
+          python tools/measure.py --hiz-trim 0 --case 0 -17.786033 --output measurements/hiz-min.json
+          python tools/measure.py --hiz-trim 1 --case 0 -17.786033 --output measurements/hiz-max.json
+          python tools/measure.py --load 600 --case 0 -20 --output measurements/load-600.json
+          python tools/measure.py --load 10000 --case 0 -20 --output measurements/load-10000.json
       - name: Measure gain-reduction timing
         run: python tools/measure.py --timing --output measurements/timing.json
+      - name: Check measured factory targets
+        run: |
+          python - <<'PY'
+          import json
+          from math import log10, sqrt
+          from pathlib import Path
+
+          def result(name):
+              return json.loads((Path("measurements") / (name + ".json")).read_text())
+
+          frequency, calibration = result("ac-noise"), result("factory-1k")
+          assert max(abs(point["relative_dB"]) for point in frequency["response"]) <= 1
+          assert frequency["output_noise_dBV"] < -82
+          assert abs(calibration[0]["tp6_mean_V"]) <= .010
+          assert calibration[1]["THD_K2_K20_pct"] < .08
+          assert result("factory-40")[0]["THD_K2_K20_pct"] < .25
+          assert result("factory-10k")[0]["THD_K2_K20_pct"] < .10
+          for variant, low, high in [("min", -21.5, -18.5), ("max", -1.5, 2.5)]:
+              pp = result("hiz-" + variant)[0]["tp1_peak_to_peak_V"]
+              assert low <= 20 * log10(pp / (2 * sqrt(2))) <= high
+          a = result("load-600")[0]["output_dBu"]
+          b = result("load-10000")[0]["output_dBu"]
+          r = 10**((a - b) / 20)
+          impedance = (1 - r) / (r / 600 - 1 / 10000)
+          assert 21 <= impedance <= 23
+          timing = result("timing")
+          assert 120 <= timing[-1]["mid_release_dB_per_s"] <= 130
+          print(f"Hi-Z range, {impedance:.2f} ohm output impedance, distortion, and deep release passed")
+          PY
       - uses: actions/upload-artifact@v4
         if: always()
         with:

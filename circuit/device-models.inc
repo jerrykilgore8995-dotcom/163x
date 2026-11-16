@@ -24,9 +24,13 @@ IQUIET VP VN 0.9m
 * 120 mV fits the NEC sample spread and leaves R25 within the factory trim range.
 * Current limiting bounds the macro outside the datasheet input range.
 * Smoothing the rectifier around zero gives a finite noise-floor operating point.
-.param KSQ=0.02562337 IREF=30.30303u ICREF=10.113333u VREF=0.120
+* Fit the otherwise unspecified buffer gain to the factory release rate.
+* Compensate the integrator gain and offset to preserve the NEC pin-7
+* 5.9 mV/dB static slope and the 120 mV calibration point.
+.param RMS_BUFFER_GAIN=1.19
+.param KSQ={0.02562337/RMS_BUFFER_GAIN} IREF=30.30303u ICREF=10.113333u VREF={0.120/RMS_BUFFER_GAIN}
 BAVG 0 CT I={min(0.002, ICREF*((i(VSENSE)+v(SYM,REF)/10k)^2+1e-18)/(IREF*IREF)*exp(min(35,max(-35,(VREF-v(CT,REF))/KSQ))))}
-EBUF BUF REF CT REF 1
+EBUF BUF REF CT REF {RMS_BUFFER_GAIN}
 ROUT BUF OUT 35
 .ends UPC1253H2
 

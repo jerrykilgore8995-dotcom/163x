@@ -13,7 +13,7 @@ import numpy as np
 
 CIRCUIT = Path(__file__).resolve().parents[1] / "circuit"
 REFERENCE = 0.775
-NODES = "v(out) v(xunit.tp3) v(xunit.tp4) v(xunit.tp6) v(xunit.vp15) v(xunit.vn15) v(xunit.vp24) v(xunit.vn24) v(xunit.tp1) v(xunit.tp11)"
+NODES = "v(out) v(xunit.tp3) v(xunit.tp4) v(xunit.tp6) v(xunit.vp15) v(xunit.vn15) v(xunit.vp24) v(xunit.vn24) v(xunit.tp1) v(xunit.tp11) v(xunit.vca_ec)"
 ANALYSIS_RATE = 400_000
 POWER = """* Bench precharge is removed by 150 ms; mains powers the measured interval.
 VPRE_P POS_KICK 0 PWL(0 24 0.05 24 0.15 0)
@@ -55,6 +55,11 @@ quit
 
 def bench_deck(args, peak, slider, mains):
     body = (CIRCUIT / "163x.cir").read_text().rsplit(".end", 1)[0]
+    if args.hiz_trim is not None:
+        body = body.replace("RSOURCE SRC REAR 100\nRFRONT FRONT 0 1meg",
+                            "RSOURCE SRC FRONT 100\nRREAR REAR 0 1meg")
+        body = body.replace("LEVEL={OUTPUT}", f"LEVEL={{OUTPUT}} FRONT=1 HIZTRIM={args.hiz_trim}")
+    body = body.replace("RLOAD OUT 0 10k", f"RLOAD OUT 0 {args.load}")
     body = body.replace(".param AMP=0.1 FREQ=1000 SLIDE=0.45 OUTPUT=0.5",
                         f".param AMP={peak:.12g} FREQ={args.frequency} SLIDE={slider} OUTPUT={args.level_set}")
     if mains:
@@ -110,13 +115,15 @@ wrdata trace.txt {NODES}
         "level_set_position": args.level_set,
         "frequency_Hz": args.frequency,
         "input_dBu": dbu,
+        "front_hiz_trim": args.hiz_trim,
+        "output_load_ohms": args.load,
         "output_dBu": 20 * np.log10(harmonics[0] / (REFERENCE * np.sqrt(2))),
         "THD_K2_K20_pct": 100 * np.linalg.norm(harmonics[1:]) / harmonics[0],
         "K2_dBc": 20 * np.log10(harmonics[1] / harmonics[0]),
         "K3_dBc": 20 * np.log10(harmonics[2] / harmonics[0]),
     }
     names = ("tp3", "tp4", "tp6", "positive_rail", "negative_rail",
-             "raw_positive", "raw_negative", "tp1", "tp11")
+             "raw_positive", "raw_negative", "tp1", "tp11", "vca_control")
     for index, name in enumerate(names, 2):
         node = np.interp(time, data[:, 0], data[:, index])
         result[name + "_mean_V"] = float(np.mean(node))
@@ -124,17 +131,18 @@ wrdata trace.txt {NODES}
     return result
 
 
-def timing(args, step):
+def timing(args, step, return_to_silence=False):
     # Both stimulus transitions occur at a 1 kHz zero crossing. A half-cycle
     # raised-cosine transition avoids a discontinuous slope at the breakpoint.
     attack_start, release_start = 0.25, 0.48
     low_peak = REFERENCE * np.sqrt(2) * 10 ** ((8-step)/20)
     high_peak = REFERENCE * np.sqrt(2) * 10 ** (8/20)
     body = bench_deck(args, low_peak, 0.85, False)
+    release_peak = 0 if return_to_silence else low_peak
     body = body.replace(
         "BSIGNAL SRC SRC_REF V={AMP*sin(6.283185307179586*FREQ*time)*tanh(100*time)^2}",
         f""".func edge(t) {{0.5-0.5*cos(3.141592653589793*min(1,max(0,t/500u)))}}
-BSIGNAL SRC SRC_REF V={{(AMP+({high_peak:.12g}-AMP)*(edge(time-{attack_start})-edge(time-{release_start})))*sin(6283.185307179586*time)*tanh(100*time)^2}}"""
+BSIGNAL SRC SRC_REF V={{(AMP+({high_peak:.12g}-AMP)*edge(time-{attack_start})+({release_peak:.12g}-{high_peak:.12g})*edge(time-{release_start}))*sin(6283.185307179586*time)*tanh(100*time)^2}}"""
     )
     data, _ = run_spice(args, body, f"""
 save {NODES}
@@ -143,21 +151,29 @@ wrdata trace.txt {NODES}
 """)
     if data[-1, 0] < 0.81999:
         raise RuntimeError("SPICE did not reach the end of the release")
-    # Express the detector-led gain reduction branch in dB. TP3 can
-    # also include the DC operating-level trim, which cancels in the delta.
+    # Use the actual VCA pin voltage and the NEC detector's own log output.
+    # The DC makeup offset cancels when measuring a change.
     time = np.arange(0.22, 0.819, 0.001)
-    volts = np.array([np.mean(np.interp(t+(np.arange(16)+0.5)/16000, data[:, 0], data[:, 2]))
-                      for t in time])
-    gr = -volts * (49.9/(80.6+49.9)) / 0.0061
+    periods = time[:, None]+(np.arange(16)+0.5)/16000
+    vca_control = np.interp(periods, data[:, 0], data[:, 11]).mean(axis=1)
+    detector_db = np.interp(periods, data[:, 0], data[:, 4]).mean(axis=1)/0.0059
+    gr = -vca_control/0.0061
     low = float(np.mean(gr[time < 0.245]))
     high = float(np.mean(gr[(time > 0.45) & (time < 0.475)]))
     delta = high - low
     attack = np.flatnonzero((time >= attack_start) & (gr >= low + 0.63*delta))
-    interval = (time > release_start+0.012) & (gr > low+0.25*delta) & (gr < low+0.85*delta)
-    slope = -float(np.polyfit(time[interval], gr[interval], 1)[0]) if np.count_nonzero(interval) > 2 else None
-    return {"input_step_dB": step, "gain_reduction_change_dB": delta,
+    mid = (time > release_start+0.012) & (gr > low+0.25*delta) & (gr < low+0.85*delta)
+    early = (time >= release_start+0.020) & (time < release_start+0.060)
+
+    def falling_rate(values, region):
+        return -float(np.polyfit(time[region], values[region], 1)[0]) if np.count_nonzero(region) > 2 else None
+
+    return {"input_step_dB": step, "return_to_silence": return_to_silence,
+            "gain_reduction_change_dB": delta,
             "attack_63_percent_ms": float((time[attack[0]] - attack_start)*1000) if len(attack) else None,
-            "mid_release_dB_per_s": slope}
+            "early_detector_release_dB_per_s": falling_rate(detector_db, early),
+            "early_vca_release_dB_per_s": falling_rate(gr, early),
+            "mid_release_dB_per_s": falling_rate(gr, mid)}
 
 
 def main():
@@ -170,10 +186,16 @@ def main():
     parser.add_argument("--small-signal", action="store_true", help="Run AC and integrated noise")
     parser.add_argument("--mains", action="store_true", help="Measure with the connected transformer and rectifier")
     parser.add_argument("--frequency", type=int, default=1000, metavar="20..20000")
+    parser.add_argument("--hiz-trim", type=float, help="Use the front input with this trim position (0 to 1)")
+    parser.add_argument("--load", type=float, default=10_000, help="Output load in ohms")
     parser.add_argument("--level-set", type=float, default=0.5)
     parser.add_argument("--case", type=float, nargs=2, action="append", metavar=("SLIDER", "DBU"))
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
+    if args.hiz_trim is not None and not 0 <= args.hiz_trim <= 1:
+        parser.error("--hiz-trim must be within 0 to 1")
+    if args.load <= 0:
+        parser.error("--load must be positive")
     if not 20 <= args.frequency <= 20000:
         parser.error("--frequency must be between 20 and 20000 Hz")
     if not 0 <= args.level_set <= 1:
@@ -184,7 +206,8 @@ def main():
     if args.small_signal or args.timing:
         if args.timing:
             with ThreadPoolExecutor(max_workers=args.jobs) as pool:
-                result = list(pool.map(lambda step: timing(args, step), (10, 20, 30)))
+                fixtures = [(10, False), (20, False), (30, False), (30, True)]
+                result = list(pool.map(lambda case: timing(args, *case), fixtures))
         else:
             result = small_signal(args)
         print(json.dumps(result, indent=2))

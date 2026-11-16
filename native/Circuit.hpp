@@ -183,8 +183,9 @@ public:
     }
 
     double step(double input, double more, double level) {
-        smoothedMore+=smoothing*(more-smoothedMore);
-        smoothedLevel+=smoothing*(level-smoothedLevel);
+        const double moreError=more-smoothedMore,levelError=level-smoothedLevel;
+        smoothedMore=std::abs(moreError)<1e-6?more:smoothedMore+smoothing*moreError;
+        smoothedLevel=std::abs(levelError)<1e-6?level:smoothedLevel+smoothing*levelError;
         const double slider=smoothedMore, levelSet=smoothedLevel;
         ++samples;
         const auto* seed=&previous;

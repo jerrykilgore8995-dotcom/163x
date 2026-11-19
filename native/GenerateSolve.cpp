@@ -14,11 +14,17 @@ int main(int argc,char** argv) {
     solver.emitSolver(out,"hz48000");
     if (!solver.prepare(96000)) return 4;
     solver.emitSolver(out,"hz96000");
+    if (!solver.prepare(176400)) return 4;
+    solver.emitSolver(out,"hz176400");
+    if (!solver.prepare(192000)) return 4;
+    solver.emitSolver(out,"hz192000");
     out<<"using GeneratedFunction = bool(*)(double*,double*,double*);\n"
          "inline GeneratedFunction findGeneratedSolve(std::uint64_t signature) {\n"
          "  if (signature==signature_hz44100) return solve_hz44100;\n"
          "  if (signature==signature_hz48000) return solve_hz48000;\n"
          "  if (signature==signature_hz96000) return solve_hz96000;\n"
+         "  if (signature==signature_hz176400) return solve_hz176400;\n"
+         "  if (signature==signature_hz192000) return solve_hz192000;\n"
          "  return nullptr;\n"
          "}\n"
          "using GeneratedResidual = void(*)(double*,const double*);\n"
@@ -26,6 +32,8 @@ int main(int argc,char** argv) {
          "  if (rate==44100) return rhs_hz44100;\n"
          "  if (rate==48000) return rhs_hz48000;\n"
          "  if (rate==96000) return rhs_hz96000;\n"
+         "  if (rate==176400) return rhs_hz176400;\n"
+         "  if (rate==192000) return rhs_hz192000;\n"
          "  return nullptr;\n"
          "}\n";
     return out ? 0 : 5;

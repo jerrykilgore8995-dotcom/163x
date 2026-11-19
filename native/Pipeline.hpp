@@ -41,9 +41,9 @@ public:
         delay=static_cast<std::uint64_t>(delaySamples);
         for (int i=0;i<channels;++i) {
             auto& v=voices[i];
-            if (!v.solver.prepare(rate*2) || !v.prepareWake()) return false;
-            v.outputResponse.prepare(rate*2);
-            v.up.reset();v.down.reset();
+            if (!v.solver.prepare(rate*4) || !v.prepareWake()) return false;
+            v.outputResponse.prepare(rate*4);
+            v.up.reset();v.down.reset();v.up2.reset();v.down2.reset();
             v.written.store(0,std::memory_order_relaxed);
             v.completed.store(0,std::memory_order_relaxed);
             v.failed.store(0,std::memory_order_relaxed);
@@ -224,10 +224,15 @@ private:
                     const auto& s=input[next&(capacity-1)];
                     const auto& k=s.settings;
                     auto& out=output[next&(capacity-1)];
-                    const auto first=outputResponse.process(solver.step(2*up.step(s.value),k.compression,k.levelSet));
-                    out.value=static_cast<float>(down.step(first));
-                    const auto second=outputResponse.process(solver.step(2*up.step(0),k.compression,k.levelSet));
-                    down.step(second);
+                    for(int phase=0;phase<2;++phase){
+                        const double mid=2*up.step(phase==0?s.value:0.);
+                        const double hi0=outputResponse.process(solver.step(2*up2.step(mid),k.compression,k.levelSet));
+                        const double lo=down2.step(hi0);
+                        const double hi1=outputResponse.process(solver.step(2*up2.step(0.),k.compression,k.levelSet));
+                        down2.step(hi1);
+                        const double y=down.step(lo);
+                        if(phase==0)out.value=static_cast<float>(y);
+                    }
                     out.gainReductionDb=static_cast<float>(solver.gainReductionDb());
                     out.aboveThreshold=solver.aboveThreshold();
                 }
@@ -239,7 +244,7 @@ private:
         double sampleRate=44100;
         Solver solver;
         OutputResponse outputResponse;
-        Halfband up,down;
+        Halfband up,down,up2,down2;
         std::array<Input,capacity> input{};
         std::array<Output,capacity> output{};
         alignas(64) std::atomic<std::uint64_t> written{0};

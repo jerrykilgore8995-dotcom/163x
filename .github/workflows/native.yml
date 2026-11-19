@@ -1,8 +1,8 @@
-name: 163X 2x oversampled nodal VST3
+name: 163X 4x oversampled nodal VST3
 
 on:
   push:
-    branches: [163x-oversampling]
+    branches: [163x-4x-oversampling]
   workflow_dispatch:
 
 jobs:
@@ -33,7 +33,7 @@ jobs:
   windows:
     needs: deck
     runs-on: windows-2022
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -66,6 +66,13 @@ jobs:
         with:
           name: oversampled-alias-measurements
           path: build/alias.csv
+      - name: Verify actual oversampled DLL frequency response and circuit parity
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          g++ -std=c++20 -O2 -static native/OversampledProbe.cpp -o build/osprobe.exe
+          build/osprobe.exe | tee build/oversampled-response.csv
+          python tools/verify_native.py build/oversampled-response.csv build/deck/spice.json build/deck/ac.json
       - name: Gate compiled DLL transport startup
         shell: msys2 {0}
         run: |
@@ -99,9 +106,9 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "VST3 smoke test exited with code $LASTEXITCODE" }
           New-Item -ItemType Directory -Force release | Out-Null
           Copy-Item $bundle release -Recurse
-          Copy-Item build/transport-burst.txt,163X-faceplate.png,smoke-out.txt,build/native.csv,build/deck/spice.json,build/deck/ac.json,native/README.md release
+          Copy-Item build/transport-burst.txt,163X-faceplate.png,smoke-out.txt,build/native.csv,build/oversampled-response.csv,build/alias.csv,build/deck/spice.json,build/deck/ac.json,native/README.md release
       - uses: actions/upload-artifact@v4
         with:
-          name: 163X-0.1-Windows-x64-VST3-2x-Oversampled
+          name: 163X-0.1-Windows-x64-VST3-4x-Oversampled
           path: release
           if-no-files-found: error

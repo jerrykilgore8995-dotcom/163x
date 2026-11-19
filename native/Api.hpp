@@ -6,6 +6,7 @@ namespace mkii::native {
 
 struct Controls {
     float compression=0.45f, levelSet=0.5f;
+    int detectorHpf=0;
 };
 
 struct MeterReadings {
@@ -25,7 +26,7 @@ struct Api {
     unsigned (*failedSolves)(void*);
     void (*readMeters)(void*,MeterReadings*);
 };
-constexpr std::uint32_t apiVersion=1;
+constexpr std::uint32_t apiVersion=2;
 
 // Allow one extra block at 512 for the brief extra work at sharp transients.
 constexpr int playbackLatency(int hostBlock) {

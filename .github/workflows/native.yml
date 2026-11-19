@@ -1,8 +1,8 @@
-name: 163X verified digital trims with independent louder PSU noise
+name: 163X Turbocharge LP Bypass and detector HPF
 
 on:
   push:
-    branches: [163x-noise-level-fix]
+    branches: [163x-turbo-lp-hpf]
   workflow_dispatch:
 
 jobs:
@@ -92,6 +92,6 @@ jobs:
           Copy-Item build/transport-burst.txt,163X-faceplate.png,smoke-out.txt,build/native.csv,build/deck/spice.json,build/deck/ac.json,native/README.md release
       - uses: actions/upload-artifact@v4
         with:
-          name: 163X-0.1-Windows-x64-VST3-Noise-Level-Fix
+          name: 163X-0.1-Windows-x64-VST3-Turbo-LP-HPF
           path: release
           if-no-files-found: error

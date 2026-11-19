@@ -3,6 +3,7 @@
 
 #include "../native/Client.hpp"
 #include "PsuNoise.hpp"
+#include "OptionalMods.hpp"
 
 #include <array>
 #include <atomic>
@@ -55,6 +56,9 @@ public:
     void prepareToPlay(double sampleRate,int blockSize) override {
         ready=engine.prepare(sampleRate,getTotalNumInputChannels(),blockSize);
         if (ready) setLatencySamples(engine.latency());
+        lowBypass.prepare(sampleRate,engine.latency(),int(lp->load()));
+        lowBuffer.setSize(getTotalNumInputChannels(),std::max(1,blockSize));
+        turbo.prepare(sampleRate,turbocharge->load()!=0);
         failed.store(!ready);
         gainReduction.store(0);
         psu.prepare(sampleRate);noiseSmooth=noise->load();noiseAlpha=float(1-std::exp(-1/(.01*sampleRate)));
@@ -90,6 +94,9 @@ private:
         layout.add(std::make_unique<juce::AudioParameterFloat>(
             juce::ParameterID{"level",1},"Level Set",juce::NormalisableRange<float>{-30,10,0.01f},-10.0f));
         layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"noise",1},"PSU Noise",false));
+        layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"turbocharge",1},"Turbocharge",false));
+        layout.add(std::make_unique<juce::AudioParameterChoice>(juce::ParameterID{"lp",1},"LP Bypass",juce::StringArray{"Off","60 Hz","120 Hz","250 Hz"},0));
+        layout.add(std::make_unique<juce::AudioParameterChoice>(juce::ParameterID{"hpf",1},"HPF",juce::StringArray{"Off","60 Hz","120 Hz","250 Hz"},0));
         for (const auto& id : {juce::String("inputTrim"),juce::String("outputTrim")})
             layout.add(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{id,1},id=="inputTrim"?"Digital Input":"Digital Output",juce::NormalisableRange<float>{-12,12,0.1f},0.0f));
         return layout;
@@ -97,11 +104,30 @@ private:
 
     void process(juce::AudioBuffer<float>& audio,bool dry) {
         if (!ready || audio.getNumSamples()==0) return;
-        const mkii::native::Controls controls{more->load(),(level->load()+30)/40};
+        const mkii::native::Controls controls{more->load(),(level->load()+30)/40,int(hpf->load())};
         const float inDb=inputTrim->load();
         if (!dry && inDb!=0.f) audio.applyGain(juce::Decibels::decibelsToGain(inDb));
-        const bool complete=engine.process(audio.getArrayOfWritePointers(),audio.getNumSamples(),
-                                           controls,isNonRealtime(),dry);
+        bool complete=true;
+        for(int offset=0;offset<audio.getNumSamples();offset+=lowBuffer.getNumSamples()){
+            int count=std::min(lowBuffer.getNumSamples(),audio.getNumSamples()-offset);
+            std::array<float*,2> ptr{};
+            for(int c=0;c<audio.getNumChannels();++c)ptr[c]=audio.getWritePointer(c)+offset;
+            for(int i=0;i<count;++i){
+                lowBypass.update(dry?0:int(lp->load()));
+                for(int c=0;c<audio.getNumChannels();++c){
+                    float oldLow=0;float high=lowBypass.split(c,ptr[c][i],oldLow);
+                    lowBuffer.setSample(c,i,dry?0:oldLow);
+                    if(!dry)ptr[c][i]=high;
+                }
+                lowBypass.advance();
+            }
+            complete=engine.process(ptr.data(),count,controls,isNonRealtime(),dry)&&complete;
+            if(!dry)for(int i=0;i<count;++i){
+                turbo.update(turbocharge->load()!=0);
+                for(int c=0;c<audio.getNumChannels();++c)
+                    ptr[c][i]=turbo.step(c,ptr[c][i]+lowBuffer.getSample(c,i));
+            }
+        }
         const float outDb=outputTrim->load();
         if (!dry && outDb!=0.f) audio.applyGain(juce::Decibels::decibelsToGain(outDb));
         if(!dry) {
@@ -123,6 +149,12 @@ private:
     const std::atomic<float>* noise=state.getRawParameterValue("noise");
     const std::atomic<float>* inputTrim=state.getRawParameterValue("inputTrim");
     const std::atomic<float>* outputTrim=state.getRawParameterValue("outputTrim");
+    const std::atomic<float>* lp=state.getRawParameterValue("lp");
+    const std::atomic<float>* hpf=state.getRawParameterValue("hpf");
+    const std::atomic<float>* turbocharge=state.getRawParameterValue("turbocharge");
+    mkii::LowBypass lowBypass;
+    mkii::Turbo turbo;
+    juce::AudioBuffer<float> lowBuffer;
     mkii::PsuNoise psu;
     float noiseSmooth=0,noiseAlpha=.002f;
     bool ready=false;
@@ -154,7 +186,24 @@ public:
             juce::PopupMenu menu;
             menu.addCustomItem(1,std::make_unique<TrimItem>(processor.state,"inputTrim","Digital Input"),nullptr);
             menu.addCustomItem(2,std::make_unique<TrimItem>(processor.state,"outputTrim","Digital Output"),nullptr);
-            menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&settings));
+            menu.addSeparator();
+            auto* turboParam=processor.state.getParameter("turbocharge");
+            menu.addItem(3,"Turbocharge",true,turboParam->getValue()>.5f);
+            const juce::StringArray labels{"Off","60 Hz","120 Hz","250 Hz"};
+            for(int j=0;j<2;++j){
+                juce::PopupMenu sub;auto* param=processor.state.getParameter(j?"hpf":"lp");
+                for(int i=0;i<4;++i)sub.addItem(10+10*j+i,labels[i],true,std::abs(param->getValue()-i/3.f)<.01f);
+                menu.addSubMenu(j?"HPF":"LP Bypass",sub);
+            }
+            juce::Component::SafePointer<Panel> safe(this);
+            menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&settings),[safe](int result){
+                if(!safe)return;
+                auto& state=safe->processor.state;
+                auto set=[](juce::RangedAudioParameter* param,float value){param->beginChangeGesture();param->setValueNotifyingHost(value);param->endChangeGesture();};
+                if(result==3){auto* param=state.getParameter("turbocharge");set(param,param->getValue()>.5f?0.f:1.f);}
+                if(result>=10&&result<=13)set(state.getParameter("lp"),(result-10)/3.f);
+                if(result>=20&&result<=23)set(state.getParameter("hpf"),(result-20)/3.f);
+            });
         };
         setSize(850,201);
         startTimerHz(30);

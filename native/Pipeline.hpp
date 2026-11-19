@@ -222,7 +222,7 @@ private:
                     const auto& s=input[next&(capacity-1)];
                     const auto& k=s.settings;
                     auto& out=output[next&(capacity-1)];
-                    const auto wet=solver.step(s.value,k.compression,k.levelSet);
+                    const auto wet=solver.step(s.value,k.compression,k.levelSet,k.detectorHpf);
                     out.value=static_cast<float>(outputResponse.process(wet));
                     out.gainReductionDb=static_cast<float>(solver.gainReductionDb());
                     out.aboveThreshold=solver.aboveThreshold();

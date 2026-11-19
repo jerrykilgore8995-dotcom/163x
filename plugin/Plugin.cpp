@@ -102,6 +102,8 @@ private:
         if (!dry && inDb!=0.f) audio.applyGain(juce::Decibels::decibelsToGain(inDb));
         const bool complete=engine.process(audio.getArrayOfWritePointers(),audio.getNumSamples(),
                                            controls,isNonRealtime(),dry);
+        const float outDb=outputTrim->load();
+        if (!dry && outDb!=0.f) audio.applyGain(juce::Decibels::decibelsToGain(outDb));
         if(!dry) {
             const float target=noise->load();
             if(target!=0 || noiseSmooth!=0) for(int i=0;i<audio.getNumSamples();++i){
@@ -111,8 +113,6 @@ private:
                 psu.advance();
             }
         }
-        const float outDb=outputTrim->load();
-        if (!dry && outDb!=0.f) audio.applyGain(juce::Decibels::decibelsToGain(outDb));
         failed.store(!complete || engine.failedSolves()!=0);
         gainReduction.store(engine.readMeters().gainReductionDb);
     }

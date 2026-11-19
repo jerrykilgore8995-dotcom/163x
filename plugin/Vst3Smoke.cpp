@@ -175,6 +175,17 @@ int main(int argc,char** argv) {
     const double dbv=20*std::log10(voltsPerUnit*std::sqrt(sum/captures[0].size()));
     std::cout<<"PSU additive noise unweighted full digital bandwidth dBV RMS "<<dbv
              <<", noise-off dBV RMS "<<20*std::log10(voltsPerUnit*std::sqrt(offSum/captures[0].size()))<<std::endl;
-    passed=passed && std::isfinite(dbv) && dbv>=-88 && dbv<=-86;
+    passed=passed && std::isfinite(dbv) && dbv>=-58 && dbv<=-56;
+    for (const auto trim : {0.f,1.f}) {
+        inTrim->setValueNotifyingHost(trim);outTrim->setValueNotifyingHost(trim);
+        noiseParam->setValueNotifyingHost(1.f);vst->prepareToPlay(rate,n);
+        juce::AudioBuffer<float> zero(2,n);juce::MidiBuffer midi;
+        double peak=0;size_t offset=0;
+        for(int k=0;k<440;++k){zero.clear();vst->processBlock(zero,midi);
+            if(k>=80)for(int i=0;i<n;++i)peak=std::max(peak,double(std::abs(zero.getSample(0,i)-captures[1][offset++])));}
+        vst->releaseResources();
+        std::cout<<"PSU noise trim independence "<<trim<<" peak difference "<<peak<<std::endl;
+        passed=passed&&peak<1e-8&&offset==captures[1].size();
+    }
     return passed?0:10;
 }

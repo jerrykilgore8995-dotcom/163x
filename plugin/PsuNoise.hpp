@@ -43,9 +43,9 @@ struct PsuNoise {
         double sum=0;const int n=static_cast<int>(rate*2);
         for(int i=0;i<n+4096;++i){const double y=calibration.pink();if(i>=4096)sum+=y*y;}
         amplitude=std::pow(10.,-83./20)/std::sqrt(sum/n);
-        // Target complete additive noise at -87 dBV RMS (5 dB below factory ceiling).
+        // Optional character noise: +30 dB relative to the previous -87 dBV RMS target.
         const double baseRms=std::sqrt(std::pow(10.,-83./10)+.5*std::pow(10.,-76./10)+.5*std::pow(10.,-79./10));
-        scale=std::pow(10.,-87./20)/(fullScalePeakVolts*baseRms);
+        scale=std::pow(10.,-57./20)/(fullScalePeakVolts*baseRms);
         for(int c=0;c<2;++c){auto& v=voices[c];v.seed=0x12345678u+0x9e3779b9u*c;v.b.fill(0);v.hp.prepare(rate,40,true);v.lp.prepare(rate,15000,false);}
     }
     float next(int c) {

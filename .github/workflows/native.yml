@@ -1,8 +1,8 @@
-name: 163X transport-fixed Windows VST3
+name: 163X calibrated midband character Windows VST3
 
 on:
   push:
-    branches: [163x-transport-fixed]
+    branches: [163x-midband-character]
   workflow_dispatch:
 
 jobs:
@@ -56,6 +56,24 @@ jobs:
           g++ -std=c++20 -O3 -march=x86-64-v3 -I build/deck -I build/kernel native/ToneProbe.cpp -o build/tones.exe
           build/tones.exe > build/native.csv
           python tools/verify_native.py build/native.csv build/deck/spice.json build/deck/ac.json
+      - name: Calibrate and verify parallel midband harmonics against stock DLL
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          g++ -std=c++20 -O2 -static native/DistortionSweep.cpp -o build/distortion.exe
+          build/distortion.exe > build/stock-character.csv
+          python tools/calibrate_character.py build/stock-character.csv build/kernel/CharacterTable.hpp
+          g++ -std=c++20 -O3 -march=x86-64-v3 -pthread -DDBX_CHARACTER -I build/deck -I build/kernel -shared -static native/Runtime.cpp -o build/163x-native.dll
+          build/distortion.exe > build/voiced-character.csv
+          python tools/verify_character.py build/stock-character.csv build/voiced-character.csv
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: character-measurements
+          path: |
+            build/stock-character.csv
+            build/voiced-character.csv
+            build/kernel/CharacterTable.hpp
       - name: Gate compiled DLL transport startup
         shell: msys2 {0}
         run: |
@@ -89,9 +107,9 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "VST3 smoke test exited with code $LASTEXITCODE" }
           New-Item -ItemType Directory -Force release | Out-Null
           Copy-Item $bundle release -Recurse
-          Copy-Item build/transport-burst.txt,163X-faceplate.png,smoke-out.txt,build/native.csv,build/deck/spice.json,build/deck/ac.json,native/README.md release
+          Copy-Item build/stock-character.csv,build/voiced-character.csv,build/transport-burst.txt,163X-faceplate.png,smoke-out.txt,build/native.csv,build/deck/spice.json,build/deck/ac.json,native/README.md release
       - uses: actions/upload-artifact@v4
         with:
-          name: 163X-0.1-Windows-x64-VST3-Transport-Fixed
+          name: 163X-0.1-Windows-x64-VST3-Midband-Character
           path: release
           if-no-files-found: error

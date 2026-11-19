@@ -3,6 +3,7 @@
 #include "Circuit.hpp"
 #include "Api.hpp"
 #include "OutputResponse.hpp"
+#include "MidbandCharacter.hpp"
 
 #include <array>
 #include <atomic>
@@ -42,6 +43,7 @@ public:
             auto& v=voices[i];
             if (!v.solver.prepare(rate) || !v.prepareWake()) return false;
             v.outputResponse.prepare(rate);
+            v.character.prepare(rate);
             v.written.store(0,std::memory_order_relaxed);
             v.completed.store(0,std::memory_order_relaxed);
             v.failed.store(0,std::memory_order_relaxed);
@@ -223,7 +225,7 @@ private:
                     const auto& k=s.settings;
                     auto& out=output[next&(capacity-1)];
                     const auto wet=solver.step(s.value,k.compression,k.levelSet);
-                    out.value=static_cast<float>(outputResponse.process(wet));
+                    out.value=static_cast<float>(outputResponse.process(wet)+character.process(s.value,k.compression));
                     out.gainReductionDb=static_cast<float>(solver.gainReductionDb());
                     out.aboveThreshold=solver.aboveThreshold();
                 }
@@ -235,6 +237,7 @@ private:
         double sampleRate=44100;
         Solver solver;
         OutputResponse outputResponse;
+        MidbandCharacter character;
         std::array<Input,capacity> input{};
         std::array<Output,capacity> output{};
         alignas(64) std::atomic<std::uint64_t> written{0};

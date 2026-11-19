@@ -1,8 +1,8 @@
-name: 163X transport-fixed Windows VST3
+name: 163X stock nodal VST3 with digital trims
 
 on:
   push:
-    branches: [163x-transport-fixed]
+    branches: [163x-digital-trims]
   workflow_dispatch:
 
 jobs:
@@ -92,6 +92,6 @@ jobs:
           Copy-Item build/transport-burst.txt,163X-faceplate.png,smoke-out.txt,build/native.csv,build/deck/spice.json,build/deck/ac.json,native/README.md release
       - uses: actions/upload-artifact@v4
         with:
-          name: 163X-0.1-Windows-x64-VST3-Transport-Fixed
+          name: 163X-0.1-Windows-x64-VST3-Digital-Trims
           path: release
           if-no-files-found: error

@@ -90,12 +90,16 @@ private:
         layout.add(std::make_unique<juce::AudioParameterFloat>(
             juce::ParameterID{"level",1},"Level Set",juce::NormalisableRange<float>{-30,10,0.01f},-10.0f));
         layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"noise",1},"PSU Noise",false));
+        for (const auto& id : {juce::String("inputTrim"),juce::String("outputTrim")})
+            layout.add(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{id,1},id=="inputTrim"?"Digital Input":"Digital Output",juce::NormalisableRange<float>{-12,12,0.1f},0.0f));
         return layout;
     }
 
     void process(juce::AudioBuffer<float>& audio,bool dry) {
         if (!ready || audio.getNumSamples()==0) return;
         const mkii::native::Controls controls{more->load(),(level->load()+30)/40};
+        const float inDb=inputTrim->load();
+        if (!dry && inDb!=0.f) audio.applyGain(juce::Decibels::decibelsToGain(inDb));
         const bool complete=engine.process(audio.getArrayOfWritePointers(),audio.getNumSamples(),
                                            controls,isNonRealtime(),dry);
         if(!dry) {
@@ -107,6 +111,8 @@ private:
                 psu.advance();
             }
         }
+        const float outDb=outputTrim->load();
+        if (!dry && outDb!=0.f) audio.applyGain(juce::Decibels::decibelsToGain(outDb));
         failed.store(!complete || engine.failedSolves()!=0);
         gainReduction.store(engine.readMeters().gainReductionDb);
     }
@@ -115,6 +121,8 @@ private:
     const std::atomic<float>* more=state.getRawParameterValue("compression");
     const std::atomic<float>* level=state.getRawParameterValue("level");
     const std::atomic<float>* noise=state.getRawParameterValue("noise");
+    const std::atomic<float>* inputTrim=state.getRawParameterValue("inputTrim");
+    const std::atomic<float>* outputTrim=state.getRawParameterValue("outputTrim");
     mkii::PsuNoise psu;
     float noiseSmooth=0,noiseAlpha=.002f;
     bool ready=false;
@@ -140,6 +148,14 @@ public:
         noiseButton.setButtonText("PSU Noise");
         addAndMakeVisible(noiseButton);
         noiseAttachment=std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(processor.state,"noise",noiseButton);
+        settings.setButtonText("Settings  v");
+        addAndMakeVisible(settings);
+        settings.onClick=[this]{
+            juce::PopupMenu menu;
+            menu.addCustomItem(1,std::make_unique<TrimItem>(processor.state,"inputTrim","Digital Input"),nullptr);
+            menu.addCustomItem(2,std::make_unique<TrimItem>(processor.state,"outputTrim","Digital Output"),nullptr);
+            menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&settings));
+        };
         setSize(850,201);
         startTimerHz(30);
     }
@@ -152,6 +168,7 @@ public:
         compression.setBounds(261,69,287,27);
         level.setBounds(630,56,60,57);
         noiseButton.setBounds(10,176,120,24);
+        settings.setBounds(710,176,130,24);
     }
     void paint(juce::Graphics& g) override {
         const auto metal=juce::Colour(0xff242327);
@@ -240,6 +257,25 @@ public:
     }
 
 private:
+    class TrimItem final : public juce::PopupMenu::CustomComponent {
+    public:
+        TrimItem(juce::AudioProcessorValueTreeState& state,const juce::String& id,const juce::String& name)
+            : juce::PopupMenu::CustomComponent(false) {
+            label.setText(name,juce::dontSendNotification);
+            slider.setSliderStyle(juce::Slider::LinearHorizontal);
+            slider.setTextBoxStyle(juce::Slider::TextBoxRight,false,75,24);
+            slider.setTextValueSuffix(" dB");
+            addAndMakeVisible(label);addAndMakeVisible(slider);
+            attachment=std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(state,id,slider);
+            slider.setDoubleClickReturnValue(true,0.0);
+        }
+        void getIdealSize(int& w,int& h) override {w=310;h=38;}
+        void resized() override {auto area=getLocalBounds().reduced(8,3);label.setBounds(area.removeFromLeft(100));slider.setBounds(area);}
+    private:
+        juce::Label label;
+        juce::Slider slider;
+        std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> attachment;
+    };
     class Face final : public juce::LookAndFeel_V4 {
         void drawLinearSlider(juce::Graphics& g,int x,int y,int width,int height,float pos,float,float,
                               juce::Slider::SliderStyle,juce::Slider&) override {
@@ -277,6 +313,7 @@ private:
     Face face;
     juce::Slider compression,level;
     juce::ToggleButton noiseButton;
+    juce::TextButton settings;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> noiseAttachment;
     std::unique_ptr<Attachment> compressionAttachment,levelAttachment;
 };

@@ -127,6 +127,33 @@ int main(int argc,char** argv) {
         if(param->getName(128)=="Compression")compParam=param;
     }
     if(!noiseParam||!compParam)return 11;
+    juce::AudioProcessorParameter *inTrim=nullptr,*outTrim=nullptr;
+    for(auto* param:vst->getParameters()){
+        if(param->getName(128)=="Digital Input")inTrim=param;
+        if(param->getName(128)=="Digital Output")outTrim=param;
+    }
+    if(!inTrim||!outTrim||std::abs(inTrim->getValue()-.5f)>1e-6f||std::abs(outTrim->getValue()-.5f)>1e-6f)return 12;
+    // Compare actual hosted trims against the same unmodified circuit fed the scaled signal.
+    vst->setNonRealtime(true);
+    for(auto gains : {std::pair<float,float>{12.f,-12.f},{-6.f,3.f}}){
+        inTrim->setValueNotifyingHost((gains.first+12)/24);
+        outTrim->setValueNotifyingHost((gains.second+12)/24);
+        mkii::native::Client ref;
+        if(!ref.open(dll.toWideCharPointer())||!ref.prepare(rate,2,n))return 13;
+        vst->prepareToPlay(rate,n);
+        juce::AudioBuffer<float> a(2,n),b(2,n);juce::MidiBuffer midi;
+        double err=0;
+        for(int k=0;k<180;++k){
+            for(int c=0;c<2;++c)for(int i=0;i<n;++i)a.setSample(c,i,float(.15*std::sin(2*std::numbers::pi*1000*(k*n+i)/rate)));
+            b.makeCopyOf(a);b.applyGain(juce::Decibels::decibelsToGain(gains.first));
+            if(!ref.process(b.getArrayOfWritePointers(),n,{},true))return 14;
+            b.applyGain(juce::Decibels::decibelsToGain(gains.second));vst->processBlock(a,midi);
+            for(int c=0;c<2;++c)for(int i=0;i<n;++i)err=std::max(err,double(std::abs(a.getSample(c,i)-b.getSample(c,i))));
+        }
+        std::cout<<"Digital trims "<<gains.first<<","<<gains.second<<" dB reference peak error "<<err<<std::endl;
+        passed=passed&&err<2e-5&&ref.failedSolves()==0;ref.stop();vst->releaseResources();
+    }
+    inTrim->setValueNotifyingHost(.5f);outTrim->setValueNotifyingHost(.5f);
     compParam->setValueNotifyingHost(0.f);
     vst->setNonRealtime(true);
     std::vector<float> captures[2];

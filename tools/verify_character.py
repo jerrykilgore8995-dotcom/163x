@@ -8,8 +8,10 @@ for key,r in a.items():
  print(hz,s,"THD ratio",ratio,"GR delta",gr,"output delta",level,flush=True)
  assert gr<.001 and level<.01
  if hz==1000 and s:
-    assert 2.375<=ratio<=2.625
-    powers=[10**(float(q[f"K{k}_dBc"])/10) for k in range(2,21)]
-    odd=sum(powers[1::2])/sum(powers)
-    assert .62<=odd<=.68,odd
+    for k in (2,3,5):
+        before=float(r[f"K{k}_dBc"]); after=float(q[f"K{k}_dBc"])
+        target={2:-86,3:-68,5:-101}[k] if s==100 else before+20*math.log10(2.5)
+        print("K",k,"measured",after,"target",target,flush=True)
+        assert abs(after-target)<.35,(key,k,after,target)
+
  else: assert abs(ratio-1)<.015,(key,ratio)

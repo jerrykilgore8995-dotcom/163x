@@ -16,6 +16,7 @@ def case(job):
             d=Path(td)
             shutil.copytree(m.CIRCUIT/"vendor",d/"vendor")
             shutil.copyfile(m.CIRCUIT/"device-models.inc",d/"device-models.inc")
+            shutil.copyfile(m.CIRCUIT/"163x.cir",d/"163x.cir")
             b=(m.CIRCUIT/"163x-board.inc").read_text()
             b=b.replace("EVC_CTRL VCA_DRIVE 0 ECPLUS 0 {VCA_CONTROL_SCALE}",f"VVC_FIXED VCA_DRIVE 0 {row['vca_control_mean_V']:.12g}")
             (d/"163x-board.inc").write_text(b)

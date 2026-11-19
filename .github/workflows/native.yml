@@ -1,8 +1,8 @@
-name: 163X native Windows VST3
+name: 163X transport-fixed Windows VST3
 
 on:
   push:
-    branches: [163x-native]
+    branches: [163x-transport-fixed]
   workflow_dispatch:
 
 jobs:
@@ -56,6 +56,12 @@ jobs:
           g++ -std=c++20 -O3 -march=x86-64-v3 -I build/deck -I build/kernel native/ToneProbe.cpp -o build/tones.exe
           build/tones.exe > build/native.csv
           python tools/verify_native.py build/native.csv build/deck/spice.json build/deck/ac.json
+      - name: Gate compiled DLL transport startup
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          g++ -std=c++20 -O2 -static native/TransportBurst.cpp -o build/transport.exe
+          build/transport.exe | tee build/transport-burst.txt
       - uses: actions/cache/restore@v4
         with:
           path: build-plugin
@@ -83,9 +89,9 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "VST3 smoke test exited with code $LASTEXITCODE" }
           New-Item -ItemType Directory -Force release | Out-Null
           Copy-Item $bundle release -Recurse
-          Copy-Item 163X-faceplate.png,smoke-out.txt,build/native.csv,build/deck/spice.json,build/deck/ac.json,native/README.md release
+          Copy-Item build/transport-burst.txt,163X-faceplate.png,smoke-out.txt,build/native.csv,build/deck/spice.json,build/deck/ac.json,native/README.md release
       - uses: actions/upload-artifact@v4
         with:
-          name: 163X-0.1-Windows-x64-VST3
+          name: 163X-0.1-Windows-x64-VST3-Transport-Fixed
           path: release
           if-no-files-found: error

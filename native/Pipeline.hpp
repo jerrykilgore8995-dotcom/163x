@@ -21,7 +21,7 @@
 namespace mkii::native {
 
 // Each channel owns its circuit state and a single-producer, single-consumer ring.
-// The callback submits and reads samples without locking or waiting in live mode.
+// The callback submits and reads samples without locking, with bounded deadline recovery in live mode.
 class Pipeline {
 public:
     static constexpr int latency = 512;
@@ -45,6 +45,8 @@ public:
             v.written.store(0,std::memory_order_relaxed);
             v.completed.store(0,std::memory_order_relaxed);
             v.failed.store(0,std::memory_order_relaxed);
+            v.sampleRate=rate;
+            v.ready.store(false,std::memory_order_relaxed);
         }
         try {
             for (;active<channels;++active) {
@@ -54,6 +56,12 @@ public:
         } catch (...) {
             stop();
             return false;
+        }
+        for(int i=0;i<active;++i) {
+            const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(30);
+            while(!voices[i].ready.load(std::memory_order_acquire) && std::chrono::steady_clock::now()<deadline)
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            if(!voices[i].ready.load(std::memory_order_acquire)){stop();return false;}
         }
         return true;
     }
@@ -108,6 +116,18 @@ public:
                 if (waitForRender) {
                     while (v.completed.load(std::memory_order_acquire)<need)
                         std::this_thread::sleep_for(std::chrono::microseconds(50));
+                }
+                // A host may deliver startup/anticipative blocks back-to-back.
+                // Only wait when the output deadline has actually been reached
+                // and the worker has not published the required samples.
+                // Experimental bounded deadline recovery; circuit is unchanged.
+                if (!waitForRender && !dry && v.completed.load(std::memory_order_acquire)<need) {
+                    const auto deadline=std::chrono::steady_clock::now()+
+                        std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+                            std::chrono::duration<double>(double(frames)/v.sampleRate));
+                    while (v.completed.load(std::memory_order_acquire)<need &&
+                           std::chrono::steady_clock::now()<deadline)
+                        std::this_thread::yield();
                 }
                 const auto available=v.completed.load(std::memory_order_acquire);
                 if (!waitForRender)
@@ -179,7 +199,7 @@ private:
         }
         void waitForInput() {
 #ifdef _WIN32
-            WaitForSingleObject(event,INFINITE);
+            WaitForSingleObject(event,1);
 #else
             std::this_thread::sleep_for(std::chrono::microseconds(75));
 #endif
@@ -188,6 +208,7 @@ private:
 #ifdef _WIN32
             SetThreadPriority(GetCurrentThread(),THREAD_PRIORITY_ABOVE_NORMAL);
 #endif
+            ready.store(true,std::memory_order_release);
             std::uint64_t next=0;
             while (true) {
                 const auto published=written.load(std::memory_order_acquire);
@@ -210,6 +231,8 @@ private:
                 completed.store(next,std::memory_order_release);
             }
         }
+        std::atomic<bool> ready{false};
+        double sampleRate=44100;
         Solver solver;
         OutputResponse outputResponse;
         std::array<Input,capacity> input{};

@@ -1,0 +1,38 @@
+name: 163X original nodal maximum MORE input sweep
+on:
+  push:
+    branches: [163x-stock-input-sweep]
+  workflow_dispatch:
+jobs:
+  measure:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: compiled-circuit
+          run-id: 44560083796
+          github-token: ${{ github.token }}
+          path: build/deck
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          path-type: inherit
+          install: mingw-w64-ucrt-x86_64-gcc
+      - name: Measure original transport-fixed native DLL only
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          mkdir -p build/kernel
+          g++ -std=c++20 -O2 -march=x86-64-v3 -I build/deck native/GenerateSolve.cpp -o build/generate.exe
+          build/generate.exe build/kernel/GeneratedSolve.hpp
+          g++ -std=c++20 -O3 -march=x86-64-v3 -pthread -I build/deck -I build/kernel -shared -static native/Runtime.cpp -o build/163x-native.dll
+          g++ -std=c++20 -O2 -static native/InputLevelSweep.cpp -o build/levels.exe
+          DBX_FAST_SWEEP=1 build/levels.exe | tee build/stock-44100-levels.csv
+          build/levels.exe | tee build/stock-192000-levels.csv
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: 163X-stock-input-level-sweep
+          path: build/*-levels.csv

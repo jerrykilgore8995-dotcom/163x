@@ -7,7 +7,7 @@
 #include <thread>
 using namespace mkii::native;
 int main(){
- constexpr int rate=44100,N=16384; bool pass=true;
+ constexpr int rate=44100,N=24576; bool pass=true;
  for(int B:{256,512}) for(int channels:{1,2}) for(int lead:{0,512,2048}) for(int burst:{1,3,5}) {
   Client p;
   wchar_t path[32768]{};

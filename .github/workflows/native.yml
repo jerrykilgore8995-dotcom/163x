@@ -1,8 +1,8 @@
-name: 163X 4x oversampled nodal VST3
+name: 163X 4x transport fixed Windows VST3
 
 on:
   push:
-    branches: [163x-4x-oversampling]
+    branches: [163x-4x-transport-fixed]
   workflow_dispatch:
 
 jobs:
@@ -52,27 +52,10 @@ jobs:
           mkdir -p build/kernel
           g++ -std=c++20 -O2 -march=x86-64-v3 -I build/deck native/GenerateSolve.cpp -o build/generate.exe
           build/generate.exe build/kernel/GeneratedSolve.hpp
-          g++ -std=c++20 -O3 -march=x86-64-v3 -pthread -I build/deck -I build/kernel -shared -static native/Runtime.cpp -o build/163x-native.dll
+          g++ -std=c++20 -O3 -march=x86-64-v3 -fno-math-errno -flto -pthread -I build/deck -I build/kernel -shared -static native/Runtime.cpp -o build/163x-native.dll
           g++ -std=c++20 -O3 -march=x86-64-v3 -I build/deck -I build/kernel native/ToneProbe.cpp -o build/tones.exe
           build/tones.exe > build/native.csv
           python tools/verify_native.py build/native.csv build/deck/spice.json build/deck/ac.json
-      - name: Measure 44.1 kHz alias suppression
-        shell: msys2 {0}
-        run: |
-          set -euo pipefail
-          g++ -std=c++20 -O2 -static native/AliasAudit.cpp -o build/alias.exe
-          build/alias.exe | tee build/alias.csv
-      - uses: actions/upload-artifact@v4
-        with:
-          name: oversampled-alias-measurements
-          path: build/alias.csv
-      - name: Verify actual oversampled DLL frequency response and circuit parity
-        shell: msys2 {0}
-        run: |
-          set -euo pipefail
-          g++ -std=c++20 -O2 -static native/OversampledProbe.cpp -o build/osprobe.exe
-          build/osprobe.exe | tee build/oversampled-response.csv
-          python tools/verify_native.py build/oversampled-response.csv build/deck/spice.json build/deck/ac.json
       - name: Gate compiled DLL transport startup
         shell: msys2 {0}
         run: |
@@ -106,9 +89,9 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "VST3 smoke test exited with code $LASTEXITCODE" }
           New-Item -ItemType Directory -Force release | Out-Null
           Copy-Item $bundle release -Recurse
-          Copy-Item build/transport-burst.txt,163X-faceplate.png,smoke-out.txt,build/native.csv,build/oversampled-response.csv,build/alias.csv,build/deck/spice.json,build/deck/ac.json,native/README.md release
+          Copy-Item build/transport-burst.txt,163X-faceplate.png,smoke-out.txt,build/native.csv,build/deck/spice.json,build/deck/ac.json,native/README.md release
       - uses: actions/upload-artifact@v4
         with:
-          name: 163X-0.1-Windows-x64-VST3-4x-Oversampled
+          name: 163X-0.1-Windows-x64-VST3-4x-Transport-Fixed
           path: release
           if-no-files-found: error

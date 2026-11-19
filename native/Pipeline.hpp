@@ -25,8 +25,8 @@ namespace mkii::native {
 // The callback submits and reads samples without locking, with bounded deadline recovery in live mode.
 class Pipeline {
 public:
-    static constexpr int latency = 512;
-    static constexpr std::uint64_t capacity = 16384;
+    static constexpr int latency = 8192;
+    static constexpr std::uint64_t capacity = 65536;
     static_assert((capacity & (capacity-1))==0);
 
     ~Pipeline() {stop();}
@@ -112,24 +112,28 @@ public:
                 published.store(position+frames,std::memory_order_release);
                 voices[c].wake();
             }
+            const auto need=position+frames>delay ? position+frames-delay : 0;
+            // One deadline for the entire host callback, not a separate wait per channel.
+            const auto deadline=std::chrono::steady_clock::now()+
+                std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+                    std::chrono::duration<double>(0.85*double(frames)/voices[0].sampleRate));
+            if(!waitForRender && !dry && need){
+                for(;;){
+                    bool available=true;
+                    for(int c=0;c<active;++c)available &= voices[c].completed.load(std::memory_order_acquire)>=need;
+                    if(available || std::chrono::steady_clock::now()>=deadline)break;
+#ifdef _WIN32
+                    SwitchToThread();
+#else
+                    std::this_thread::yield();
+#endif
+                }
+            }
             for (int c=0;c<active;++c) {
                 auto& v=voices[c];
-                const auto need=position+frames>delay ? position+frames-delay : 0;
                 if (waitForRender) {
                     while (v.completed.load(std::memory_order_acquire)<need)
                         std::this_thread::sleep_for(std::chrono::microseconds(50));
-                }
-                // A host may deliver startup/anticipative blocks back-to-back.
-                // Only wait when the output deadline has actually been reached
-                // and the worker has not published the required samples.
-                // Experimental bounded deadline recovery; circuit is unchanged.
-                if (!waitForRender && !dry && v.completed.load(std::memory_order_acquire)<need) {
-                    const auto deadline=std::chrono::steady_clock::now()+
-                        std::chrono::duration_cast<std::chrono::steady_clock::duration>(
-                            std::chrono::duration<double>(double(frames)/v.sampleRate));
-                    while (v.completed.load(std::memory_order_acquire)<need &&
-                           std::chrono::steady_clock::now()<deadline)
-                        std::this_thread::yield();
                 }
                 const auto available=v.completed.load(std::memory_order_acquire);
                 if (!waitForRender)
@@ -219,7 +223,7 @@ private:
                     waitForInput();
                     continue;
                 }
-                const auto end=std::min(next+8,published);
+                const auto end=std::min(next+32,published);
                 for (;next<end;++next) {
                     const auto& s=input[next&(capacity-1)];
                     const auto& k=s.settings;

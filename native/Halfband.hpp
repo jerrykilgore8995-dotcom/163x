@@ -20,13 +20,16 @@ public:
   for(auto& c:coefficients)c/=sum;
  }
  double step(double x){
-  history[pos]=x;
-  double y=coefficients[center]*history[(pos+taps-center)%taps];
-  for(int i=1;i<taps;i+=2)y+=coefficients[i]*history[(pos+taps-i)%taps];
-  pos=(pos+1)%taps;return y;
+  history[pos]=history[pos+taps]=x;
+  const double* current=history.data()+pos+taps;
+  double y=coefficients[center]*current[-center];
+  for(int i=1;i<taps;i+=2)y+=coefficients[i]*current[-i];
+  if(++pos==taps)pos=0;
+  return y;
  }
 private:
- std::array<double,taps> coefficients{},history{};
+ std::array<double,taps> coefficients{};
+ std::array<double,2*taps> history{};
  int pos=0;
 };
 }

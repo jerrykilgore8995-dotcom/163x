@@ -29,7 +29,8 @@ constexpr std::uint32_t apiVersion=1;
 
 // Allow one extra block at 512 for the brief extra work at sharp transients.
 constexpr int playbackLatency(int hostBlock) {
-    if (hostBlock<=256) return 512;
+    if (hostBlock<=128) return 512;
+    if (hostBlock<=256) return 1024;
     if (hostBlock<=512) return 1536;
     if (hostBlock>=4096) return 8192;
     return 2*hostBlock;

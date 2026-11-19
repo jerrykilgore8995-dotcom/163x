@@ -10,7 +10,8 @@
 #include <algorithm>
 int main(){
  using namespace mkii::native;
- constexpr int rate=192000,warm=rate*2,count=rate;
+ const bool fast=GetEnvironmentVariableW(L"DBX_FAST_SWEEP",nullptr,0)>0;
+ const int rate=fast?44100:192000,warm=rate*2,count=rate;
  
  wchar_t path[32768]{};
  if(!GetFullPathNameW(L"build/163x-native.dll",32768,path,nullptr))return 2;
@@ -20,7 +21,7 @@ int main(){
  for(int k:{2,3,5})std::cout<<",K"<<k<<"_real,K"<<k<<"_imag";
  std::cout<<",fundamental_peak,other_harmonic_power,failed_solves"<<std::endl;
  bool pass=true;
- for(int hz:{1000,100,40,20,5000,10000,20000})for(int dbu:{4,8,12,16}){
+ for(int hz: (fast?std::vector<int>{1000,100}:std::vector<int>{1000,100,40,20,5000,10000,20000}))for(int dbu:{4,8,12,16}){
   constexpr int slider=100;
   const double amp=.775*std::sqrt(2.)*std::pow(10.,dbu/20.)/mkii::fullScalePeakVolts;
   if(!p.prepare(rate,1,512))return 4;

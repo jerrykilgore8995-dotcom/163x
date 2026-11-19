@@ -30,11 +30,11 @@ public:
 
     bool prepare(double rate,int channels,int hostBlock) {
         if (!instance || !api->prepare(instance,rate,channels,hostBlock)) return false;
-        delay=playbackLatency(hostBlock);
+        delay=playbackLatency(hostBlock)+oversamplingLatency;
         return true;
     }
     void stop() {if (instance) api->stop(instance);}
-    int latency() const {return instance?(delay?delay:api->latency):0;}
+    int latency() const {return instance?(delay?delay:api->latency+oversamplingLatency):0;}
     unsigned failedSolves() const {return instance?api->failedSolves(instance):0;}
     MeterReadings readMeters() const {
         MeterReadings meters;

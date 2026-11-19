@@ -3,6 +3,7 @@
 #include "Circuit.hpp"
 #include "Api.hpp"
 #include "OutputResponse.hpp"
+#include "Halfband.hpp"
 
 #include <array>
 #include <atomic>
@@ -40,8 +41,9 @@ public:
         delay=static_cast<std::uint64_t>(delaySamples);
         for (int i=0;i<channels;++i) {
             auto& v=voices[i];
-            if (!v.solver.prepare(rate) || !v.prepareWake()) return false;
-            v.outputResponse.prepare(rate);
+            if (!v.solver.prepare(rate*2) || !v.prepareWake()) return false;
+            v.outputResponse.prepare(rate*2);
+            v.up.reset();v.down.reset();
             v.written.store(0,std::memory_order_relaxed);
             v.completed.store(0,std::memory_order_relaxed);
             v.failed.store(0,std::memory_order_relaxed);
@@ -140,10 +142,10 @@ public:
                     const auto index=position+i-delay;
                     const auto input=v.input[index&(capacity-1)].value;
                     if (dry) {
-                        channels[c][offset+i]=input;
+                        channels[c][offset+i]=index>=oversamplingLatency ? v.input[(index-oversamplingLatency)&(capacity-1)].value : 0.f;
                     } else if (index>=available) {
                         // Maintain timeline and latency on an isolated miss.
-                        channels[c][offset+i]=input;
+                        channels[c][offset+i]=index>=oversamplingLatency ? v.input[(index-oversamplingLatency)&(capacity-1)].value : 0.f;
                         ++underruns;
                         complete=false;
                     } else {
@@ -222,8 +224,10 @@ private:
                     const auto& s=input[next&(capacity-1)];
                     const auto& k=s.settings;
                     auto& out=output[next&(capacity-1)];
-                    const auto wet=solver.step(s.value,k.compression,k.levelSet);
-                    out.value=static_cast<float>(outputResponse.process(wet));
+                    const auto first=outputResponse.process(solver.step(2*up.step(s.value),k.compression,k.levelSet));
+                    out.value=static_cast<float>(down.step(first));
+                    const auto second=outputResponse.process(solver.step(2*up.step(0),k.compression,k.levelSet));
+                    down.step(second);
                     out.gainReductionDb=static_cast<float>(solver.gainReductionDb());
                     out.aboveThreshold=solver.aboveThreshold();
                 }
@@ -235,6 +239,7 @@ private:
         double sampleRate=44100;
         Solver solver;
         OutputResponse outputResponse;
+        Halfband up,down;
         std::array<Input,capacity> input{};
         std::array<Output,capacity> output{};
         alignas(64) std::atomic<std::uint64_t> written{0};

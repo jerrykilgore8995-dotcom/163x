@@ -25,7 +25,8 @@ struct Api {
     unsigned (*failedSolves)(void*);
     void (*readMeters)(void*,MeterReadings*);
 };
-constexpr std::uint32_t apiVersion=1;
+constexpr std::uint32_t apiVersion=2;
+constexpr int oversamplingLatency=80;
 
 // Allow one extra block at 512 for the brief extra work at sharp transients.
 constexpr int playbackLatency(int hostBlock) {

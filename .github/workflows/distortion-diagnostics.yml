@@ -1,0 +1,24 @@
+name: 163X detector isolation and factory THD
+on:
+  push:
+    branches: [163x-distortion-diagnostics]
+  workflow_dispatch:
+jobs:
+  spice:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y ngspice poppler-utils
+          python -m pip install numpy
+          python tools/prepare_models.py
+          python tools/distortion_diagnostics.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: 163x-detector-isolation
+          path: build/diagnostics.json

@@ -8,6 +8,7 @@
 #include <iostream>
 #include <cmath>
 #include <numbers>
+#include <vector>
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter();
 
@@ -118,5 +119,35 @@ int main(int argc,char** argv) {
                  <<peakCallback<<" ms\n";
         passed=!differingSamples && peakCallback<1000.0*n/rate && passed;
     }
+    // Measure packaged VST3 noise at the factory minimum-compression, -10 level setting.
+    juce::AudioProcessorParameter* noiseParam=nullptr;
+    juce::AudioProcessorParameter* compParam=nullptr;
+    for(auto* param:vst->getParameters()){
+        if(param->getName(128)=="PSU Noise")noiseParam=param;
+        if(param->getName(128)=="Compression")compParam=param;
+    }
+    if(!noiseParam||!compParam)return 11;
+    compParam->setValueNotifyingHost(0.f);
+    vst->setNonRealtime(true);
+    std::vector<float> captures[2];
+    for(int on=0;on<2;++on){
+        noiseParam->setValueNotifyingHost(float(on));
+        vst->prepareToPlay(rate,n);
+        juce::AudioBuffer<float> zero(2,n);juce::MidiBuffer midi;
+        for(int k=0;k<440;++k){
+            zero.clear();vst->processBlock(zero,midi);
+            if(k>=80) captures[on].insert(captures[on].end(),zero.getReadPointer(0),zero.getReadPointer(0)+n);
+        }
+        vst->releaseResources();
+    }
+    double sum=0,mean=0,offMean=0,offSum=0;
+    for(size_t i=0;i<captures[0].size();++i){mean+=captures[1][i]-captures[0][i];offMean+=captures[0][i];}
+    mean/=captures[0].size();offMean/=captures[0].size();
+    for(size_t i=0;i<captures[0].size();++i){double d=captures[1][i]-captures[0][i]-mean;sum+=d*d;double e=captures[0][i]-offMean;offSum+=e*e;}
+    const double voltsPerUnit=.775*std::sqrt(2.)*7.943282347242816;
+    const double dbv=20*std::log10(voltsPerUnit*std::sqrt(sum/captures[0].size()));
+    std::cout<<"PSU additive noise unweighted full digital bandwidth dBV RMS "<<dbv
+             <<", noise-off dBV RMS "<<20*std::log10(voltsPerUnit*std::sqrt(offSum/captures[0].size()))<<std::endl;
+    passed=passed && std::isfinite(dbv) && dbv>=-88 && dbv<=-86;
     return passed?0:10;
 }

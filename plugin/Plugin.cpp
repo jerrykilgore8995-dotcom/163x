@@ -2,6 +2,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include "../native/Client.hpp"
+#include "PsuNoise.hpp"
 
 #include <array>
 #include <atomic>
@@ -56,6 +57,7 @@ public:
         if (ready) setLatencySamples(engine.latency());
         failed.store(!ready);
         gainReduction.store(0);
+        psu.prepare(sampleRate);noiseSmooth=noise->load();noiseAlpha=float(1-std::exp(-1/(.01*sampleRate)));
     }
     void releaseResources() override {
         engine.stop();
@@ -87,6 +89,7 @@ private:
             juce::ParameterID{"compression",1},"Compression",juce::NormalisableRange<float>{0,1,0.0001f},0.45f));
         layout.add(std::make_unique<juce::AudioParameterFloat>(
             juce::ParameterID{"level",1},"Level Set",juce::NormalisableRange<float>{-30,10,0.01f},-10.0f));
+        layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"noise",1},"PSU Noise",false));
         return layout;
     }
 
@@ -95,6 +98,15 @@ private:
         const mkii::native::Controls controls{more->load(),(level->load()+30)/40};
         const bool complete=engine.process(audio.getArrayOfWritePointers(),audio.getNumSamples(),
                                            controls,isNonRealtime(),dry);
+        if(!dry) {
+            const float target=noise->load();
+            if(target!=0 || noiseSmooth!=0) for(int i=0;i<audio.getNumSamples();++i){
+                noiseSmooth+=noiseAlpha*(target-noiseSmooth);
+                if(std::abs(noiseSmooth-target)<1e-6f)noiseSmooth=target;
+                for(int c=0;c<audio.getNumChannels();++c)audio.getWritePointer(c)[i]+=noiseSmooth*psu.next(c);
+                psu.advance();
+            }
+        }
         failed.store(!complete || engine.failedSolves()!=0);
         gainReduction.store(engine.readMeters().gainReductionDb);
     }
@@ -102,6 +114,9 @@ private:
     mkii::native::Client engine;
     const std::atomic<float>* more=state.getRawParameterValue("compression");
     const std::atomic<float>* level=state.getRawParameterValue("level");
+    const std::atomic<float>* noise=state.getRawParameterValue("noise");
+    mkii::PsuNoise psu;
+    float noiseSmooth=0,noiseAlpha=.002f;
     bool ready=false;
 };
 
@@ -122,7 +137,10 @@ public:
         }
         compressionAttachment=std::make_unique<Attachment>(processor.state,"compression",compression);
         levelAttachment=std::make_unique<Attachment>(processor.state,"level",level);
-        setSize(850,175);
+        noiseButton.setButtonText("PSU Noise");
+        addAndMakeVisible(noiseButton);
+        noiseAttachment=std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(processor.state,"noise",noiseButton);
+        setSize(850,201);
         startTimerHz(30);
     }
     ~Panel() override {
@@ -133,12 +151,14 @@ public:
     void resized() override {
         compression.setBounds(261,69,287,27);
         level.setBounds(630,56,60,57);
+        noiseButton.setBounds(10,176,120,24);
     }
     void paint(juce::Graphics& g) override {
         const auto metal=juce::Colour(0xff242327);
         const auto letters=juce::Colour(0xffeeeae2);
         g.setGradientFill({metal.brighter(0.18f),0,0,metal.darker(0.38f),0,175,false});
-        g.fillRect(getLocalBounds());
+        g.fillRect(0,0,850,175);
+        g.setColour(juce::Colour(0xff101014));g.fillRect(0,175,850,26);
         g.setColour(juce::Colour(0xff0f0e10));
         g.drawRect(getLocalBounds());
         for (int y : {16,159}) for (int x : {18,832}) {
@@ -256,6 +276,8 @@ private:
     Compressor& processor;
     Face face;
     juce::Slider compression,level;
+    juce::ToggleButton noiseButton;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> noiseAttachment;
     std::unique_ptr<Attachment> compressionAttachment,levelAttachment;
 };
 

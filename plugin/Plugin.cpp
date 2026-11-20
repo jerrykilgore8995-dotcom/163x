@@ -11,7 +11,7 @@
 
 namespace {
 
-juce::File runtimePath() {
+juce::File runtimePath(bool newMode=false) {
     static const int anchor=0;
     HMODULE module=nullptr;
     if (!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
@@ -22,7 +22,7 @@ juce::File runtimePath() {
     const auto size=GetModuleFileNameW(module,path.data(),static_cast<DWORD>(path.size()));
     if (!size || size>=path.size()) return {};
     return juce::File(juce::String(path.data())).getParentDirectory().getParentDirectory()
-        .getChildFile("Resources").getChildFile("163x-native.dll");
+        .getChildFile("Resources").getChildFile(newMode?"163x-new-native.dll":"163x-native.dll");
 }
 
 class Compressor final : public juce::AudioProcessor {
@@ -32,7 +32,9 @@ public:
                                            .withOutput("Output",juce::AudioChannelSet::stereo(),true)),
           state(*this,nullptr,"Settings",parameters()) {
         const auto path=runtimePath().getFullPathName();
-        if (engine.open(path.toWideCharPointer())) setLatencySamples(engine.latency());
+        if (oldEngine.open(path.toWideCharPointer())) setLatencySamples(oldEngine.latency());
+        const auto newPath=runtimePath(true).getFullPathName();
+        newEngine.open(newPath.toWideCharPointer());
     }
 
     const juce::String getName() const override {return "163X";}
@@ -54,6 +56,9 @@ public:
                (in==juce::AudioChannelSet::mono() || in==juce::AudioChannelSet::stereo());
     }
     void prepareToPlay(double sampleRate,int blockSize) override {
+        // Latch the circuit selection on prepare, never allocate or load a DLL in processBlock.
+        activeNew=mode->load()>.5f;
+        auto& engine=activeNew?newEngine:oldEngine;
         ready=engine.prepare(sampleRate,getTotalNumInputChannels(),blockSize);
         if (ready) setLatencySamples(engine.latency());
         lowBypass.prepare(sampleRate,engine.latency(),int(lp->load()));
@@ -64,7 +69,7 @@ public:
         psu.prepare(sampleRate);noiseSmooth=noise->load();noiseAlpha=float(1-std::exp(-1/(.01*sampleRate)));
     }
     void releaseResources() override {
-        engine.stop();
+        oldEngine.stop();newEngine.stop();
         ready=false;
     }
     void processBlock(juce::AudioBuffer<float>& audio,juce::MidiBuffer&) override {
@@ -93,6 +98,7 @@ private:
             juce::ParameterID{"compression",1},"Compression",juce::NormalisableRange<float>{0,1,0.0001f},0.45f));
         layout.add(std::make_unique<juce::AudioParameterFloat>(
             juce::ParameterID{"level",1},"Level Set",juce::NormalisableRange<float>{-30,10,0.01f},-10.0f));
+        layout.add(std::make_unique<juce::AudioParameterChoice>(juce::ParameterID{"circuitMode",1},"Circuit Mode",juce::StringArray{"Old","New"},0));
         layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"noise",1},"PSU Noise",false));
         layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"turbocharge",1},"Turbocharge",false));
         layout.add(std::make_unique<juce::AudioParameterChoice>(juce::ParameterID{"lp",1},"LP Bypass",juce::StringArray{"Off","60 Hz","120 Hz","250 Hz"},0));
@@ -104,6 +110,7 @@ private:
 
     void process(juce::AudioBuffer<float>& audio,bool dry) {
         if (!ready || audio.getNumSamples()==0) return;
+        auto& engine=activeNew?newEngine:oldEngine;
         const mkii::native::Controls controls{more->load(),(level->load()+30)/40,int(hpf->load())};
         const float inDb=inputTrim->load();
         if (!dry && inDb!=0.f) audio.applyGain(juce::Decibels::decibelsToGain(inDb));
@@ -143,7 +150,9 @@ private:
         gainReduction.store(engine.readMeters().gainReductionDb);
     }
 
-    mkii::native::Client engine;
+    mkii::native::Client oldEngine,newEngine;
+    bool activeNew=false;
+    const std::atomic<float>* mode=state.getRawParameterValue("circuitMode");
     const std::atomic<float>* more=state.getRawParameterValue("compression");
     const std::atomic<float>* level=state.getRawParameterValue("level");
     const std::atomic<float>* noise=state.getRawParameterValue("noise");
@@ -187,6 +196,10 @@ public:
             menu.addCustomItem(1,std::make_unique<TrimItem>(processor.state,"inputTrim","Digital Input"),nullptr);
             menu.addCustomItem(2,std::make_unique<TrimItem>(processor.state,"outputTrim","Digital Output"),nullptr);
             menu.addSeparator();
+            auto* modeParam=processor.state.getParameter("circuitMode");
+            menu.addItem(30,"Old circuit",true,modeParam->getValue()<.5f);
+            menu.addItem(31,"New circuit (4.65k)",true,modeParam->getValue()>.5f);
+            menu.addSeparator();
             auto* turboParam=processor.state.getParameter("turbocharge");
             menu.addItem(3,"Turbocharge",true,turboParam->getValue()>.5f);
             const juce::StringArray labels{"Off","60 Hz","120 Hz","250 Hz"};
@@ -200,6 +213,8 @@ public:
                 if(!safe)return;
                 auto& state=safe->processor.state;
                 auto set=[](juce::RangedAudioParameter* param,float value){param->beginChangeGesture();param->setValueNotifyingHost(value);param->endChangeGesture();};
+                if(result==30||result==31){set(state.getParameter("circuitMode"),float(result-30));
+                    juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::InfoIcon,"Circuit selection","New circuit selection takes effect on the next host prepare. Stop and restart the audio engine or reload the saved plugin instance.");}
                 if(result==3){auto* param=state.getParameter("turbocharge");set(param,param->getValue()>.5f?0.f:1.f);}
                 if(result>=10&&result<=13)set(state.getParameter("lp"),(result-10)/3.f);
                 if(result>=20&&result<=23)set(state.getParameter("hpf"),(result-20)/3.f);

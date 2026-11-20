@@ -1,0 +1,33 @@
+name: 163X R37 4.65k level sweep
+on:
+  push:
+    branches: [163x-4301-blackmer-cells]
+    paths: ['.github/workflows/detector-465-level-sweep.yml']
+  workflow_dispatch:
+jobs:
+  measure:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ['min','max']
+        high: ['-8','-4','0','4','8','12','18']
+    env:
+      MODE: connected
+      AUDIT_VARIANT: scale_4k65
+      TARGET: ${{ matrix.target }}
+      HIGH_DBU: ${{ matrix.high }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: sudo apt-get update -qq && sudo apt-get install -y ngspice poppler-utils && pip install numpy
+      - run: python tools/prepare_models.py
+      - run: python tools/detector_465_level_sweep.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: r37-465-level-${{ matrix.target }}-${{ matrix.high }}
+          path: measurements/

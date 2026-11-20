@@ -3,7 +3,7 @@ name: 163X Old New 4.65k listening build
 on:
   push:
     branches: [163x-4301-blackmer-cells]
-    paths: ['.github/workflows/old-new-build.yml','plugin/Plugin.cpp','plugin/Vst3Smoke.cpp']
+    paths: ['.github/workflows/old-new-build.yml','plugin/Plugin.cpp','plugin/Vst3Smoke.cpp','tools/verify_native.py']
   workflow_dispatch:
 
 jobs:
@@ -108,6 +108,6 @@ jobs:
           Copy-Item 163X-faceplate.png,smoke-out.txt,smoke-new.txt,build/native-old.csv,build/native-new.csv,native/README.md release
       - uses: actions/upload-artifact@v4
         with:
-          name: 163X-0.2-Windows-x64-VST3-Old-New-465
+          name: 163X-0.2-Windows-x64-VST3-Old-New-465-Listening
           path: release
           if-no-files-found: error

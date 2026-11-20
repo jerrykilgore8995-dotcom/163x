@@ -1,0 +1,39 @@
+name: 163X working 4.65k calibration and ceiling
+on:
+  push:
+    branches: [163x-4301-blackmer-cells]
+    paths: ['.github/workflows/working-465-audit.yml']
+  workflow_dispatch:
+jobs:
+  measure:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {target: '10', high: '8', robust: '0'}
+          - {target: '20', high: '8', robust: '0'}
+          - {target: '30', high: '8', robust: '0'}
+          - {target: 'max', high: '4', robust: '0'}
+          - {target: 'max', high: '8', robust: '0'}
+          - {target: 'max', high: '12', robust: '0'}
+          - {target: 'max', high: '18', robust: '1'}
+    env:
+      MODE: connected
+      TARGET: ${{ matrix.target }}
+      HIGH_DBU: ${{ matrix.high }}
+      ROBUST: ${{ matrix.robust }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: sudo apt-get update -qq && sudo apt-get install -y ngspice poppler-utils && pip install numpy
+      - run: python tools/prepare_models.py
+      - run: python tools/working_465_audit.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: working465-${{ matrix.target }}-${{ matrix.high }}
+          path: measurements/

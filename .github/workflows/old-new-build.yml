@@ -3,7 +3,7 @@ name: 163X Old New 4.65k listening build
 on:
   push:
     branches: [163x-4301-blackmer-cells]
-    paths: ['.github/workflows/old-new-build.yml']
+    paths: ['.github/workflows/old-new-build.yml','plugin/Plugin.cpp','plugin/Vst3Smoke.cpp']
   workflow_dispatch:
 
 jobs:

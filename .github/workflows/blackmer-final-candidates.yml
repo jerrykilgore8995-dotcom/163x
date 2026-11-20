@@ -1,0 +1,78 @@
+name: 163X final circuit candidates
+on:
+  push:
+    branches: [163x-4301-blackmer-cells]
+    paths: ['.github/workflows/blackmer-final-candidates.yml','tools/blackmer_final_candidates.py']
+  workflow_dispatch:
+jobs:
+  measure:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {"name":"cal","vr":"18k","rr":"30k","rt":"1.65meg","kind":"range","case":4,"ct":"10u","c16":"330n","level":"0"}
+          - {"name":"cal","vr":"18k","rr":"30k","rt":"1.65meg","kind":"range","case":12,"ct":"10u","c16":"330n","level":"0"}
+          - {"name":"cal","vr":"18k","rr":"30k","rt":"1.65meg","kind":"range","case":16,"ct":"10u","c16":"330n","level":"0"}
+          - {"name":"cal","vr":"18k","rr":"30k","rt":"1.65meg","kind":"range","case":18,"ct":"10u","c16":"330n","level":"0"}
+          - {"name":"cal","vr":"18k","rr":"30k","rt":"1.65meg","kind":"timing","case":10,"ct":"10u","c16":"330n","level":"0"}
+          - {"name":"cal","vr":"18k","rr":"30k","rt":"1.65meg","kind":"timing","case":10,"ct":"22u","c16":"330n","level":"0"}
+          - {"name":"cal","vr":"18k","rr":"30k","rt":"1.65meg","kind":"timing","case":10,"ct":"10u","c16":"2.2u","level":"0"}
+          - {"name":"cal","vr":"18k","rr":"30k","rt":"1.65meg","kind":"timing","case":20,"ct":"10u","c16":"330n","level":"0"}
+          - {"name":"cal","vr":"18k","rr":"30k","rt":"1.65meg","kind":"timing","case":20,"ct":"22u","c16":"330n","level":"0"}
+          - {"name":"cal","vr":"18k","rr":"30k","rt":"1.65meg","kind":"timing","case":20,"ct":"10u","c16":"2.2u","level":"0"}
+          - {"name":"cal","vr":"18k","rr":"30k","rt":"1.65meg","kind":"timing","case":30,"ct":"10u","c16":"330n","level":"0"}
+          - {"name":"cal","vr":"18k","rr":"30k","rt":"1.65meg","kind":"timing","case":30,"ct":"22u","c16":"330n","level":"0"}
+          - {"name":"cal","vr":"18k","rr":"30k","rt":"1.65meg","kind":"timing","case":30,"ct":"10u","c16":"2.2u","level":"0"}
+          - {"name":"reference","vr":"20k","rr":"10k","rt":"2meg","kind":"range","case":4,"ct":"10u","c16":"330n","level":"0"}
+          - {"name":"reference","vr":"20k","rr":"10k","rt":"2meg","kind":"range","case":12,"ct":"10u","c16":"330n","level":"0"}
+          - {"name":"reference","vr":"20k","rr":"10k","rt":"2meg","kind":"range","case":16,"ct":"10u","c16":"330n","level":"0"}
+          - {"name":"reference","vr":"20k","rr":"10k","rt":"2meg","kind":"range","case":18,"ct":"10u","c16":"330n","level":"0"}
+          - {"name":"reference","vr":"20k","rr":"10k","rt":"2meg","kind":"timing","case":10,"ct":"10u","c16":"330n","level":"0"}
+          - {"name":"reference","vr":"20k","rr":"10k","rt":"2meg","kind":"timing","case":10,"ct":"22u","c16":"330n","level":"0"}
+          - {"name":"reference","vr":"20k","rr":"10k","rt":"2meg","kind":"timing","case":10,"ct":"10u","c16":"2.2u","level":"0"}
+          - {"name":"reference","vr":"20k","rr":"10k","rt":"2meg","kind":"timing","case":20,"ct":"10u","c16":"330n","level":"0"}
+          - {"name":"reference","vr":"20k","rr":"10k","rt":"2meg","kind":"timing","case":20,"ct":"22u","c16":"330n","level":"0"}
+          - {"name":"reference","vr":"20k","rr":"10k","rt":"2meg","kind":"timing","case":20,"ct":"10u","c16":"2.2u","level":"0"}
+          - {"name":"reference","vr":"20k","rr":"10k","rt":"2meg","kind":"timing","case":30,"ct":"10u","c16":"330n","level":"0"}
+          - {"name":"reference","vr":"20k","rr":"10k","rt":"2meg","kind":"timing","case":30,"ct":"22u","c16":"330n","level":"0"}
+          - {"name":"reference","vr":"20k","rr":"10k","rt":"2meg","kind":"timing","case":30,"ct":"10u","c16":"2.2u","level":"0"}
+          - {"name":"ref_release","vr":"20k","rr":"10k","rt":"1.65meg","kind":"range","case":4,"ct":"10u","c16":"330n","level":"0"}
+          - {"name":"ref_release","vr":"20k","rr":"10k","rt":"1.65meg","kind":"range","case":12,"ct":"10u","c16":"330n","level":"0"}
+          - {"name":"ref_release","vr":"20k","rr":"10k","rt":"1.65meg","kind":"range","case":16,"ct":"10u","c16":"330n","level":"0"}
+          - {"name":"ref_release","vr":"20k","rr":"10k","rt":"1.65meg","kind":"range","case":18,"ct":"10u","c16":"330n","level":"0"}
+          - {"name":"ref_release","vr":"20k","rr":"10k","rt":"1.65meg","kind":"timing","case":10,"ct":"10u","c16":"330n","level":"0"}
+          - {"name":"ref_release","vr":"20k","rr":"10k","rt":"1.65meg","kind":"timing","case":10,"ct":"22u","c16":"330n","level":"0"}
+          - {"name":"ref_release","vr":"20k","rr":"10k","rt":"1.65meg","kind":"timing","case":10,"ct":"10u","c16":"2.2u","level":"0"}
+          - {"name":"ref_release","vr":"20k","rr":"10k","rt":"1.65meg","kind":"timing","case":20,"ct":"10u","c16":"330n","level":"0"}
+          - {"name":"ref_release","vr":"20k","rr":"10k","rt":"1.65meg","kind":"timing","case":20,"ct":"22u","c16":"330n","level":"0"}
+          - {"name":"ref_release","vr":"20k","rr":"10k","rt":"1.65meg","kind":"timing","case":20,"ct":"10u","c16":"2.2u","level":"0"}
+          - {"name":"ref_release","vr":"20k","rr":"10k","rt":"1.65meg","kind":"timing","case":30,"ct":"10u","c16":"330n","level":"0"}
+          - {"name":"ref_release","vr":"20k","rr":"10k","rt":"1.65meg","kind":"timing","case":30,"ct":"22u","c16":"330n","level":"0"}
+          - {"name":"ref_release","vr":"20k","rr":"10k","rt":"1.65meg","kind":"timing","case":30,"ct":"10u","c16":"2.2u","level":"0"}
+    env:
+      AUDIT_MODE: ${{ matrix.name }}
+      AUDIT_KIND: ${{ matrix.kind }}
+      AUDIT_CASE: ${{ matrix.case }}
+      VCA_R: ${{ matrix.vr }}
+      RMS_R: ${{ matrix.rr }}
+      TIME_R: ${{ matrix.rt }}
+      TIME_C: ${{ matrix.ct }}
+      C16: ${{ matrix.c16 }}
+      LEVEL_SET: ${{ matrix.level }}
+      TRIM: '0.52'
+      SYM_REF: ECPLUS
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: sudo apt-get update -qq && sudo apt-get install -y ngspice poppler-utils && pip install numpy
+      - run: python tools/prepare_models.py
+      - run: python tools/blackmer_final_candidates.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: candidate-${{ strategy.job-index }}
+          path: measurements/

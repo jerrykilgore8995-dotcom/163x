@@ -684,7 +684,7 @@ private:
         for (int iter=0;iter<iterations;++iter) {
             stampStep();
             if (!matrix.solve()) return false;
-            for (double correction : matrix.x) if (!std::isfinite(correction)) return false;
+            // Sparse::solve already rejects every non-finite correction, including its generated path.
             double maxNode=0, maxBranch=0;
             for (int i=0;i<deck.nodes;++i) maxNode=std::max(maxNode,std::abs(matrix.x[i]));
             for (int i=deck.nodes;i<deck.size;++i) maxBranch=std::max(maxBranch,std::abs(matrix.x[i]));

@@ -81,11 +81,13 @@ int main(int argc,char** argv) {
             }
         }
         auto expected=input;
+        const auto offlineStart=std::chrono::steady_clock::now();
         if (!reference.process(expected.getArrayOfWritePointers(),expected.getNumSamples(),{},true) ||
             reference.failedSolves()!=0) {
             std::cerr<<"Unpaced render failed. Solver failures: "<<reference.failedSolves()<<'\n';
             return 8;
         }
+        std::cout<<"Unpaced reference channels="<<layout.size()<<" audioMs="<<1000.0*expected.getNumSamples()/rate<<" renderMs="<<std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-offlineStart).count()<<" latency="<<reference.latency()<<std::endl;
         reference.stop();
         vst->setNonRealtime(false);
         vst->prepareToPlay(rate,n);

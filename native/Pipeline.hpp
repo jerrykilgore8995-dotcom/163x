@@ -28,11 +28,7 @@ public:
     static constexpr std::uint64_t capacity = 16384;
     static_assert((capacity & (capacity-1))==0);
 
-    ~Pipeline() {stop();
-#ifdef _WIN32
-        if (deadlineTimer) CloseHandle(deadlineTimer);
-#endif
-    }
+    ~Pipeline() {stop();}
     Pipeline()=default;
     Pipeline(const Pipeline&)=delete;
     Pipeline& operator=(const Pipeline&)=delete;
@@ -42,10 +38,6 @@ public:
         if (channels<1 || channels>2 || delaySamples<128 || delaySamples>=static_cast<int>(capacity)-512)
             return false;
         delay=static_cast<std::uint64_t>(delaySamples);
-#ifdef _WIN32
-        if (!deadlineTimer) deadlineTimer=CreateWaitableTimerExW(nullptr,nullptr,0x00000002,TIMER_MODIFY_STATE|SYNCHRONIZE);
-        if (!deadlineTimer) return false;
-#endif
         for (int i=0;i<channels;++i) {
             auto& v=voices[i];
             if (!v.solver.prepare(rate) || !v.prepareWake()) return false;
@@ -53,10 +45,6 @@ public:
             v.written.store(0,std::memory_order_relaxed);
             v.completed.store(0,std::memory_order_relaxed);
             v.failed.store(0,std::memory_order_relaxed);
-#ifdef _WIN32
-            v.required.store(0,std::memory_order_relaxed);
-            ResetEvent(v.progress);
-#endif
             v.sampleRate=rate;
             v.ready.store(false,std::memory_order_relaxed);
         }
@@ -122,34 +110,9 @@ public:
                 published.store(position+frames,std::memory_order_release);
                 voices[c].wake();
             }
-            // Both workers share a single callback deadline. Do not spend one
-            // complete host-block budget waiting on each stereo channel.
-            const auto need=position+frames>delay ? position+frames-delay : 0;
-#ifdef _WIN32
-            if (!waitForRender && !dry) {
-                const auto deadline=std::chrono::steady_clock::now()+
-                    std::chrono::duration_cast<std::chrono::steady_clock::duration>(
-                        std::chrono::duration<double>(0.85*frames/voices[0].sampleRate));
-                for (int c=0;c<active;++c) {
-                    auto& v=voices[c];
-                    if (v.completed.load(std::memory_order_acquire)>=need) continue;
-                    v.required.store(need,std::memory_order_seq_cst);
-                    while (v.completed.load(std::memory_order_seq_cst)<need) {
-                        auto ns=std::chrono::duration_cast<std::chrono::nanoseconds>(
-                            deadline-std::chrono::steady_clock::now()).count();
-                        if (ns<=0) break;
-                        LARGE_INTEGER due{};
-                        due.QuadPart=-((ns+99)/100);
-                        if (!SetWaitableTimer(deadlineTimer,&due,0,nullptr,nullptr,FALSE)) break;
-                        HANDLE handles[]={v.progress,deadlineTimer};
-                        if (WaitForMultipleObjects(2,handles,FALSE,INFINITE)!=WAIT_OBJECT_0) break;
-                    }
-                    v.required.store(0,std::memory_order_release);
-                }
-            }
-#endif
             for (int c=0;c<active;++c) {
                 auto& v=voices[c];
+                const auto need=position+frames>delay ? position+frames-delay : 0;
                 if (waitForRender) {
                     while (v.completed.load(std::memory_order_acquire)<need)
                         std::this_thread::sleep_for(std::chrono::microseconds(50));
@@ -158,7 +121,6 @@ public:
                 // Only wait when the output deadline has actually been reached
                 // and the worker has not published the required samples.
                 // Experimental bounded deadline recovery; circuit is unchanged.
-#ifndef _WIN32
                 if (!waitForRender && !dry && v.completed.load(std::memory_order_acquire)<need) {
                     const auto deadline=std::chrono::steady_clock::now()+
                         std::chrono::duration_cast<std::chrono::steady_clock::duration>(
@@ -167,7 +129,6 @@ public:
                            std::chrono::steady_clock::now()<deadline)
                         std::this_thread::yield();
                 }
-#endif
                 const auto available=v.completed.load(std::memory_order_acquire);
                 if (!waitForRender)
                     maxRequiredDelay=std::max(maxRequiredDelay,position+frames-available);
@@ -221,14 +182,12 @@ private:
         ~Voice() {
 #ifdef _WIN32
             if (event) CloseHandle(event);
-            if (progress) CloseHandle(progress);
 #endif
         }
         bool prepareWake() {
 #ifdef _WIN32
             if (!event) event=CreateEventW(nullptr,FALSE,FALSE,nullptr);
-            if (!progress) progress=CreateEventW(nullptr,FALSE,FALSE,nullptr);
-            return event!=nullptr && progress!=nullptr;
+            return event!=nullptr;
 #else
             return true;
 #endif
@@ -269,11 +228,7 @@ private:
                     out.aboveThreshold=solver.aboveThreshold();
                 }
                 failed.store(solver.failures(),std::memory_order_relaxed);
-                completed.store(next,std::memory_order_seq_cst);
-#ifdef _WIN32
-                const auto target=required.load(std::memory_order_seq_cst);
-                if (target && next>=target) SetEvent(progress);
-#endif
+                completed.store(next,std::memory_order_release);
             }
         }
         std::atomic<bool> ready{false};
@@ -287,13 +242,9 @@ private:
         std::atomic<unsigned> failed{0};
         std::thread worker;
 #ifdef _WIN32
-        HANDLE event=nullptr,progress=nullptr;
-        std::atomic<std::uint64_t> required{0};
+        HANDLE event=nullptr;
 #endif
     };
-#ifdef _WIN32
-    HANDLE deadlineTimer=nullptr;
-#endif
     std::array<Voice,2> voices;
     int active=0;
     std::uint64_t position=0,underruns=0,delay=latency,maxRequiredDelay=0;

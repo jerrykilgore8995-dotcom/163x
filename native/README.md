@@ -9,3 +9,5 @@ The output uses a sample-rate-dependent correction shelf after the nodal solve t
 ## Transport startup correction
 
 This branch waits for worker readiness at activation and allows bounded deadline recovery on rapid host callbacks, without changing circuit equations or reported latency. The release workflow gates packaging on 36 compiled-DLL startup cases at 44.1 kHz (mono/stereo, 256/512 sample blocks, three leading-silence lengths and three startup burst lengths), waveform parity against synchronous rendering, callback deadlines, and existing VST3 checks.
+
+Dual-mode listening build: Old retains its pinned transport and latency; New uses the identical transport implementation with doubled reserve (3,072 samples at a 512-sample block, 69.66 ms at 44.1 kHz) to accommodate its larger physical circuit. No change to the circuit equations, convergence tolerances or playback parity gates. New kernel selection and unpaced throughput are logged.

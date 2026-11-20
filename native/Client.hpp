@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Api.hpp"
+#include <string_view>
 
 #ifndef NOMINMAX
 #define NOMINMAX
@@ -18,6 +19,7 @@ public:
 
     bool open(const wchar_t* path) {
         close();
+        newModel=std::wstring_view(path).ends_with(L"163x-new-native.dll");
         module=LoadLibraryExW(path,nullptr,LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR|LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
         if (!module) return false;
         const auto load=reinterpret_cast<LoadApi>(GetProcAddress(module,"dbx163x_native_api"));
@@ -30,7 +32,7 @@ public:
 
     bool prepare(double rate,int channels,int hostBlock) {
         if (!instance || !api->prepare(instance,rate,channels,hostBlock)) return false;
-        delay=playbackLatency(hostBlock);
+        delay=newModel ? newPlaybackLatency(hostBlock) : playbackLatency(hostBlock);
         return true;
     }
     void stop() {if (instance) api->stop(instance);}
@@ -56,6 +58,7 @@ private:
     }
     HMODULE module=nullptr;
     int delay=0;
+    bool newModel=false;
     void* instance=nullptr;
     const Api* api=nullptr;
 };

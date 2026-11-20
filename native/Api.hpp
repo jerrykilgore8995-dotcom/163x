@@ -36,6 +36,11 @@ constexpr int playbackLatency(int hostBlock) {
     if (hostBlock>=4096) return 8192;
     return 2*hostBlock;
 }
+// New Blackmer model has more transient work; reserve two Old transport windows.
+constexpr int newPlaybackLatency(int hostBlock) {
+    const int d=playbackLatency(hostBlock);
+    return d<=4096 ? 2*d : d;
+}
 using LoadApi=const Api* (*)();
 
 }

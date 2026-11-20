@@ -262,6 +262,13 @@ public:
     }
     void addSlot(int slot,double value) { entries[slot]+=value; }
 
+    bool usesGenerated() const {
+#if __has_include("GeneratedSolve.hpp")
+        return generated!=nullptr;
+#else
+        return false;
+#endif
+    }
     int operationCount() const { return static_cast<int>(activeUpdates.size()); }
     std::vector<double> rhs, x;
 

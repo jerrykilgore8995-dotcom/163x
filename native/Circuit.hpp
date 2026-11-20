@@ -251,6 +251,7 @@ public:
     // Read the gain-reduction display driver at TP4, upstream of Level Set.
     double gainReductionDb() const { return std::max(0.0,x[deck.meter]/0.024); }
     bool aboveThreshold() const { return gainReductionDb()>0.5; }
+    bool usesGenerated() const {return matrix.usesGenerated();}
     int operations() const { return matrix.operationCount(); }
     void emitSolver(std::ostream& code,std::string_view name) const {
         matrix.emit(code,name);

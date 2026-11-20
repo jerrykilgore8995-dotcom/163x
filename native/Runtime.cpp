@@ -20,7 +20,7 @@ const Api runtime{
     },
     [](void* instance) {delete static_cast<Pipeline*>(instance);},
     [](void* instance,double rate,int channels,int hostBlock) -> int {
-        try {return engine(instance).prepare(rate,channels,mkii::native::playbackLatency(hostBlock));}
+        try {return engine(instance).prepare(rate,channels,mkii::native::newPlaybackLatency(hostBlock));}
         catch (...) {engine(instance).stop();return 0;}
     },
     [](void* instance) {engine(instance).stop();},

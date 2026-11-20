@@ -32,29 +32,33 @@ def run(label,body,cmd):
         if not np.all(np.isfinite(x)):raise RuntimeError(label+" nonfinite")
         return x
 base="VP vp 0 15\nVN vn 0 -15\nXU y inm inp vn 0 dummy dummy vp NJM4558\nRLOAD y 0 100k\n"
-# The unused second half is in unity feedback at ground.
-def dc(label,load=0):
-    return run(label,base+"VD inp 0 0\nVM inm 0 0\nIL y 0 "+str(load),
-               "dc VD -0.005 0.005 0.000002\nwrdata trace.txt v(y) i(VD) i(VM)")
-d=dc("open-loop-dc")
-idx=np.where((d[:-1,1]<=0)&(d[1:,1]>0))[0]
-if len(idx)!=1:raise RuntimeError("expected unique positive open-loop zero crossing")
-i=int(idx[0]);vos=float(np.interp(0,d[i:i+2,1],d[i:i+2,0]))
-mask=abs(d[:,1])<3
-if mask.sum()<3:raise RuntimeError("insufficient linear DC points")
-gain=float(np.polyfit(d[mask,0],d[mask,1],1)[0])
-hi=float(np.median(d[-100:,1]));lo=float(np.median(d[:100,1]))
-ibp=-float(np.interp(vos,d[:,0],d[:,2]));ibm=-float(np.interp(vos,d[:,0],d[:,3]))
-# Repeat DC sweep with output loads to estimate open-loop output resistance near zero.
-ld=dc("open-loop-loaded-positive",.0001);ln=dc("open-loop-loaded-negative",-.0001)
-# Loaded and unloaded sweeps have the same input voltages.
-ro=float(np.median((ln[mask,1]-ld[mask,1])/.0002))
-ac=run("open-loop-ac",base+f"VD inp 0 DC {vos:.17g} AC 1\nVM inm 0 0",
-       "ac dec 35 1 1e7\nwrdata trace.txt vm(y)")
-acgain=ac[0,1]; target=acgain/math.sqrt(2)
+# Force the output to prescribed DC voltages with negative-feedback servo.
+# This measures the differential input needed at each output voltage without
+# stepping across an extremely narrow open-loop transition.
+servo=base+"VI inp 0 0\nVT target 0 0\nESERVO inm 0 y target 100\n"
+d=run("servo-gain",servo,"dc VT -5 5 .1\nwrdata trace.txt v(y) v(inm) i(VI)")
+x=d[:,1];diff=-d[:,2]
+if np.ptp(x)<8 or not np.all(np.diff(x)>0):raise RuntimeError("servo did not track the commanded output")
+slope,vos=np.polyfit(x,diff,1);gain=float(1/slope);vos=float(vos)
+ibp=-float(np.interp(0,x,d[:,3]))
+# Current at the inverting input, with the same feedback fixture.
+d2=run("servo-bias",servo.replace("ESERVO inm 0 y target 100","ESERVO drive 0 y target 100\nVSENSE drive inm 0"),"dc VT -5 5 .1\nwrdata trace.txt v(y) i(VSENSE)")
+ibm=float(np.interp(0,d2[:,1],d2[:,2]))
+# Saturation swing measured with deliberately overdriven differential input.
+sat=run("saturation",base+"VD inp 0 0\nVM inm 0 0","dc VD -0.1 0.1 .001\nwrdata trace.txt v(y)")
+hi=float(np.median(sat[-10:,1]));lo=float(np.median(sat[:10,1]))
+# Open-loop output impedance from servo differential versus output current
+# at a fixed target. Convert differential shift to equivalent output change.
+load=run("output-impedance",servo+"IL y 0 0","dc IL -.0005 .0005 .000025\nwrdata trace.txt v(y) v(inm)")
+ro=float(gain*np.polyfit(load[:,0],-load[:,2],1)[0]-np.polyfit(load[:,0],load[:,1],1)[0])
+# Closed-loop gain of 101 moves the dominant pole into a numerically robust
+# measurable range. Derive unity-gain bandwidth and dominant pole.
+ac=run("closed-loop-ac",base+"VD inp 0 DC 0 AC 1\nRF y inm 100k\nRG inm 0 1k","ac dec 40 1 1e7\nwrdata trace.txt vm(y)")
+acgain=float(ac[0,1]);target=acgain/math.sqrt(2)
 ix=np.flatnonzero(ac[:,1]<=target)
-if not len(ix) or ix[0]==0:raise RuntimeError("cannot identify dominant pole")
-j=ix[0];pole=float(np.exp(np.interp(target,ac[j-1:j+1,1][::-1],np.log(ac[j-1:j+1,0][::-1]))))
+if not len(ix) or ix[0]==0:raise RuntimeError("cannot identify closed-loop bandwidth")
+j=ix[0];bw=float(np.exp(np.interp(target,ac[j-1:j+1,1][::-1],np.log(ac[j-1:j+1,0][::-1]))))
+pole=bw/(1+gain/101)
 slew=run("follower-step",base.replace("inm inp","y inp")+"VD inp 0 pulse(-5 5 100u 20n 20n 100u 200u)",
          "tran 20n 350u 0 20n\nwrdata trace.txt v(y)")
 t,y=slew[:,0],slew[:,1];dy=np.diff(y)/np.diff(t)
@@ -62,6 +66,7 @@ mid=(abs(y[:-1])<3)&(abs(y[1:])<3)
 up=dy[mid&(dy>0)];dn=-dy[mid&(dy<0)]
 if len(up)<5 or len(dn)<5:raise RuntimeError("slew measurement failed")
 srp=float(np.percentile(up,90));srn=float(np.percentile(dn,90))
+print("Servo characterization",dict(gain=gain,vos=vos,ibp=ibp,ibm=ibm,ro=ro,hi=hi,lo=lo,pole=pole,srp=srp,srn=srn),flush=True)
 # Sanity guards are intentionally wide; no datasheet constants replace a failed fit.
 if not (1e3<gain<1e7 and 0.1<pole<1e5 and 0<ro<1e5 and hi>5 and lo<-5 and 1e3<min(srp,srn)<1e8):raise RuntimeError("invalid measured parameters")
 cap=1/(2*math.pi*pole*1e6)

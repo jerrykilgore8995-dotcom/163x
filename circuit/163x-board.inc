@@ -1,7 +1,7 @@
 * AKG/dbx 163X board, transcribed from the one-page service drawing.
 * Two instances and the J4 connection reproduce master/slave wiring.
 * J1/J2 normal contacts are represented by their connected plug state.
-.subckt DBX163X J1T J2T J3T J4T J4R VA VB params: FRONT=0 SLAVE=0 MORE=0.45 LEVEL=0.5 HIZTRIM=0.5 VCATRIM=0.52 RMSZERO=0.015 RMSSYM=0.218
+.subckt DBX163X J1T J2T J3T J4T J4R VA VB params: FRONT=0 SLAVE=0 MORE=0.45 LEVEL=0.5 HIZTRIM=0.5 VCATRIM=0.52
 .func wiper(x) {min(0.99999,max(0.00001,x))}
 * PSU secondary, bridge, reservoir, local regulators and fault-free earth bond.
 C26 VB 0 10n
@@ -53,19 +53,20 @@ C34 ECPLUS 0 1n
 VVC_SENSE ECPLUS VCA_EC 0
 XIC1 VCA_IN VCA_EC 0 VCA_TRIM VP15 VN15 VCA_IO 0 4301VCA
 R14 VCA_IO OUT_FB 15k
-R15 OA2P 0 20k
 R16 OA2O OUT_FB 22
 * The 1995 board labels the corresponding out-of-loop resistor R42, 22 Ω.
 R_OUT OUT_FB J3T 22
-C6 VCA_IO OA2O 100p
-C7 OA2_COMP8 OA2_COMP5 100p
+C6 VCA_IO OA2O 47p
 C8 VP15 0 10n
 C9 VN15 0 10n
-XOA2 OA2P VCA_IO VP15 VN15 OA2O OA2_COMP5 OA2_COMP8 NE5534
-* NEC RMS current input, timing and output nodes. TP11 is the integrator output.
-C12 TAP RMS_AC 330n
+* The 4301 shares its VCA current-output pin with its on-chip OA3.
+XOA2 0 VCA_IO VP15 VN15 OA2O 4301OA3
+* 4301 current input and IT/CT network. TP11 is the external timing integrator.
+* The zero-volt source preserves loading. The native build uses it for optional HPF.
+VDET_HPF RMS_TAP TAP 0
+C12 RMS_TAP RMS_AC 330n
 C13 VP15 0 10u
-C15 J4R TIME_SUM 10u
+C15 J4R TIME_SUM 12u
 C16 TP11 J4R 330n
 C17 TIME_SUM OA1BO 68n
 DCR6 TIME_SUM TP11 D1N4148
@@ -74,7 +75,20 @@ R28 RMS_AC RMS_IN 30k
 R34 RMS_IT VN15 2meg
 R35 OA1BO TP11 220
 R36 TIME_SUM TP11 8.2meg
-XIC2 RMS_IN RMS_IT J4R TP6 VN15 VP15 0 4301RMS
+XIC2 RMS_IN RMS_IT CT_IC TP6 VN15 VP15 0 4301RMS
+* Average CT current across the rectifier ripple. OA1 steers only the
+* discharge half into a supplemental current sink. When the RMS cell
+* levels off, this current falls with it and the OverEasy knee tapers.
+VCT_SENSE CT_IC J4R 0
+HCT_I CT_I 0 VCT_SENSE 100k
+RCT_FILTER CT_I CT_I_F 1k
+CCT_FILTER CT_I_F 0 2.2u
+RCT_IN CT_I_F CT_SUM 10k
+RCT_FB CT_REL CT_SUM 10k
+DCT_RECT CT_DRV CT_REL D1N4148
+DCT_FB CT_SUM CT_DRV D1N4148
+XCT_RECT 0 CT_SUM VP15 VN15 CT_DRV 4301OA1
+GCT_RELEASE J4R VN15 CT_REL 0 3.3u
 XOA1B 0 TIME_SUM VP15 VN15 OA1BO LF353/NS
 * Front LEVEL SET pot and MORE slide. Separate half-wave paths create
 * the operating-level offset and the gain reduction display drive.

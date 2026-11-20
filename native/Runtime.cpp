@@ -32,6 +32,6 @@ const Api runtime{
 };
 }
 
-extern "C" __declspec(dllexport) const mkii::native::Api* dbx163x_native_api() {
+extern "C" __declspec(dllexport) const mkii::native::Api* compressor163xl_native_api() {
     return &runtime;
 }

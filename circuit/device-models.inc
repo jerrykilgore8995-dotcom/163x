@@ -8,32 +8,6 @@
 .model LED1204A D(IS=2e-17 N=2 RS=12 BV=5 IBV=10u CJO=20p)
 .model Q2SA952L PNP(IS=3e-14 BF=150 VAF=55 RB=50 RC=1 RE=0.5 CJE=18p CJC=7p TF=700p)
 
-* NEC uPC1253H2 current rectifier, translinear square/average and buffer.
-* VCT is the physical logarithmic integrator state. Preserve board R34, C15,
-* C16, diode network and J4 ring; no hidden timing capacitor or envelope.
-* NEC functional blocks are documented; transistor geometry is unpublished.
-.subckt UPC1253H2 IN ISREF REF SYM VN CT OUT VP
-VSENSE IN SENSE 0
-RSENSE SENSE REF 15
-RBIAS ISREF ISCLAMP 2k
-VBIAS ISCLAMP VN 1.8
-RSYM SYM REF 10k
-IQUIET VP VN 0.9m
-* Xrms current reaches 30.303uA at the 1Vrms/33k NEC reference.
-* Reference current 10.113uA follows the test fixture's -12V and 1.2M.
-* 120 mV fits the NEC sample spread and leaves R25 within the factory trim range.
-* Current limiting bounds the macro outside the datasheet input range.
-* Smoothing the rectifier around zero gives a finite noise-floor operating point.
-* Fit the otherwise unspecified buffer gain to the factory release rate.
-* Compensate the integrator gain and offset to preserve the NEC pin-7
-* 5.9 mV/dB static slope and the 120 mV calibration point.
-.param RMS_BUFFER_GAIN=1.19
-.param KSQ={0.02562337/RMS_BUFFER_GAIN} IREF=30.30303u ICREF=10.113333u VREF={0.120/RMS_BUFFER_GAIN}
-BAVG 0 CT I={min(0.002, ICREF*((i(VSENSE)+v(SYM,REF)/10k)^2+1e-18)/(IREF*IREF)*exp(min(35,max(-35,(VREF-v(CT,REF))/KSQ))))}
-EBUF BUF REF CT REF {RMS_BUFFER_GAIN}
-ROUT BUF OUT 35
-.ends UPC1253H2
-
 * Open collector sink with finite saturation resistance and off conductance.
 .subckt LA6339_OC INP INM VP VN OUT
 IQ VP VN 200u

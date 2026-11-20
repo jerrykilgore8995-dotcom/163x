@@ -69,18 +69,20 @@ def bench_deck(args, peak, slider, mains):
 
 def small_signal(args):
     data, log = run_spice(args, bench_deck(args, 0, 0, False), """
-ac dec 48 20 20k
-wrdata trace.txt vdb(out)
+ac dec 96 20 20k
+wrdata trace.txt vdb(out) vp(out)
 noise v(out) VIN dec 48 20 20k
 setplot noise2
 print onoise_total inoise_total
 """)
     reference = np.interp(np.log(1000), np.log(data[:, 0]), data[:, 1])
+    phase = np.unwrap(data[:, 2]) * 180 / np.pi
     output_noise = float(re.search(r"onoise_total\s*=\s*([0-9.eE+-]+)", log)[1])
     input_noise = float(re.search(r"inoise_total\s*=\s*([0-9.eE+-]+)", log)[1])
     return {
         "response": [{"frequency_Hz": float(f),
-                      "relative_dB": float(np.interp(np.log(f), np.log(data[:, 0]), data[:, 1])-reference)}
+                      "relative_dB": float(np.interp(np.log(f), np.log(data[:, 0]), data[:, 1])-reference),
+                      "phase_deg": float(np.interp(np.log(f), np.log(data[:, 0]), phase))}
                      for f in (20, 30, 40, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 15000, 20000)],
         "output_noise_dBV": 20 * np.log10(output_noise),
         "input_noise_dBu": 20 * np.log10(input_noise / REFERENCE),
@@ -151,13 +153,13 @@ wrdata trace.txt {NODES}
 """)
     if data[-1, 0] < 0.81999:
         raise RuntimeError("SPICE did not reach the end of the release")
-    # Use the actual VCA pin voltage and the NEC detector's own log output.
+    # Use the actual VCA pin voltage and the THAT4301 detector log output.
     # The DC makeup offset cancels when measuring a change.
     time = np.arange(0.22, 0.819, 0.001)
     periods = time[:, None]+(np.arange(16)+0.5)/16000
     vca_control = np.interp(periods, data[:, 0], data[:, 11]).mean(axis=1)
-    detector_db = np.interp(periods, data[:, 0], data[:, 4]).mean(axis=1)/0.0059
-    gr = -vca_control/0.0061
+    detector_db = np.interp(periods, data[:, 0], data[:, 4]).mean(axis=1)/0.0065
+    gr = -vca_control/0.0065
     low = float(np.mean(gr[time < 0.245]))
     high = float(np.mean(gr[(time > 0.45) & (time < 0.475)]))
     delta = high - low

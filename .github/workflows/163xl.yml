@@ -1,0 +1,91 @@
+name: 163XL Windows VST3
+
+on:
+  push:
+    branches: [163xl]
+  workflow_dispatch:
+
+jobs:
+  circuit:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y ngspice poppler-utils
+          python -m pip install numpy
+          python tools/prepare_models.py
+          python tools/native_seed.py build/seed.raw
+          python native/compile_deck.py circuit build/seed.raw build/Deck.hpp --quiet-rails
+          python tools/measure.py --small-signal --output build/spice-ac.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: 163xl-circuit
+          path: |
+            build/Deck.hpp
+            build/spice-ac.json
+
+  windows:
+    needs: circuit
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: 163xl-circuit
+          path: build
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          path-type: inherit
+          install: mingw-w64-ucrt-x86_64-gcc
+      - name: Compile the circuit runtime
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          g++ -std=c++20 -O2 -march=x86-64-v3 -I build native/GenerateSolve.cpp -o build/generate.exe
+          build/generate.exe build/GeneratedSolve.hpp
+          g++ -std=c++20 -O3 -march=x86-64-v3 -pthread -I build -shared -static native/Runtime.cpp -o build/163xl-native.dll
+          g++ -std=c++20 -O3 -march=x86-64-v3 -I build native/XLProbe.cpp -o build/xlprobe.exe
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Measure timing, response, phase and harmonics
+        run: |
+          python -m pip install numpy
+          python tools/measure_xl.py build/xlprobe.exe build/spice-ac.json build/163xl-measurements.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: 163XL-measurements
+          path: build/163xl-measurements.json
+      - name: Build and host the VST3
+        shell: pwsh
+        run: |
+          cmake -S plugin -B build-plugin -A x64
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          cmake --build build-plugin --config Release --target Compressor163XL_VST3 Vst3Smoke --parallel 4
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $bundle = (Resolve-Path "build-plugin/Compressor163XL_artefacts/Release/VST3/163XL.vst3").Path
+          $resources = Join-Path $bundle "Contents/Resources"
+          New-Item -ItemType Directory -Force $resources | Out-Null
+          Copy-Item build/163xl-native.dll $resources
+          & "build-plugin/Vst3Smoke_artefacts/Release/Vst3Smoke.exe" $bundle 2>&1 | Tee-Object -FilePath smoke.txt
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          New-Item -ItemType Directory -Force release | Out-Null
+          Copy-Item $bundle release -Recurse
+          Copy-Item 163XL-faceplate.png,smoke.txt,build/163xl-measurements.json,README.md release
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: 163XL-host-diagnostics
+          path: smoke.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: 163XL-0.1.0-Windows-x64-VST3
+          path: release
+          if-no-files-found: error

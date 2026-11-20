@@ -95,9 +95,7 @@ def expand(lines, prefix="", mapping=None, parent=None):
         if kind == "b":
             value = None
             if name not in {"bsignal","bmains"}:
-                if orig=="bavg":
-                    value = "detector", [prefix+"vsense",node("sym"),node("ref"),node("ct")], [env[k] for k in ("icref","iref","vref","ksq")]
-                elif orig=="bsink":
+                if orig=="bsink":
                     value = "comparator", [node(k) for k in ("out","vn","inm","inp")], []
                 elif orig=="bdrive":
                     kind = "y"
@@ -244,6 +242,8 @@ cpp = ["// Generated from 163x.cir and its manufacturer includes.",
        f"    c.size = {len(variables)};", f"    c.out = {ix('out')};",
        f"    c.control = {ix('xunit.vca_ec')};", f"    c.level = {ix('xunit.tp6')};",
        f"    c.meter = {ix('xunit.tp4')};",
+       f"    c.detectorTap = {ix('xunit.tap')};",
+       f"    c.detectorHpfSource = {ix('xunit.vdet_hpf')};",
        "    c.bias = {" + ", ".join(fmt(bias(k)) for k in variables) + "};"]
 for kind,value in known.values():
     cpp.append(f"    c.constants.push_back({{{kind}, {fmt(value)}}});")

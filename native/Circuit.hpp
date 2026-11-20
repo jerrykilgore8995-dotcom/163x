@@ -105,7 +105,7 @@ struct Control { int a,b,p,m; double gain; };
 struct DModel { double is,n,cjo,vj,m,tt,fc,bv,ibv; };
 struct Inductance {int row,column; double value,q1=0,q2=0;};
 struct Cubic {int a,b,control;double gain;};
-enum class Behavior {detector,comparator,positiveRegulator,negativeRegulator};
+enum class Behavior {comparator,positiveRegulator,negativeRegulator};
 struct Behavioral {Behavior kind;int a,b;std::array<int,4> input;std::array<double,4> param;};
 struct QModel {
     double is,bf,nf,vaf,ikf,ise,ne,br,nr,var,ikr,isc,nc,cje,vje,mje,cjc,vjc,mjc,tf,tr,fc;
@@ -117,6 +117,7 @@ struct J { int d,g,s; std::array<int,9> slots{}; };
 
 struct Circuit {
     int size=0,nodes=0,out=0,control=0,level=0,meter=0;
+    int detectorTap=0,detectorHpfSource=0;
     std::vector<Constant> constants;
     std::vector<R> resistors;
     std::vector<C> capacitors;
@@ -179,14 +180,23 @@ public:
         misses = 0;
         subdivisions=0;
         lastInput=0;
-        detectorPrevious=0;detectorLow.fill(0);detectorWeights={1,0,0,0};
+        detectorLow.fill(v(deck.detectorTap));
+        detectorWeights={1,0,0,0};
+        detectorOffset=0;
         for(int j=0;j<3;++j)detectorA[j]=std::exp(-2*3.141592653589793*std::array<double,3>{60,120,250}[j]/rate);
         detectorSmooth=1-std::exp(-1/(.015*rate));
         return true;
     }
 
     double step(double input, double more, double level, int hpf=0) {
-        for(int j=0;j<4;++j){double target=j==hpf?1:0;detectorWeights[j]+=detectorSmooth*(target-detectorWeights[j]);if(std::abs(detectorWeights[j]-target)<1e-10)detectorWeights[j]=target;}
+        detectorOffset=0;
+        for (int j=0;j<4;++j) {
+            const double target=j==hpf ? 1 : 0;
+            auto& weight=detectorWeights[j];
+            weight+=detectorSmooth*(target-weight);
+            if (std::abs(weight-target)<1e-10) weight=target;
+            if (j>0) detectorOffset-=weight*detectorLow[j-1];
+        }
         const double moreError=more-smoothedMore,levelError=level-smoothedLevel;
         smoothedMore=std::abs(moreError)<1e-6?more:smoothedMore+smoothing*moreError;
         smoothedLevel=std::abs(levelError)<1e-6?level:smoothedLevel+smoothing*levelError;
@@ -238,10 +248,9 @@ public:
             std::copy(previous.begin(),previous.end(),x.begin());
             ++misses;
         }
-        for(const auto& d:deck.behavioral)if(d.kind==Behavior::detector){
-            double raw=v(d.input[0])+(v(d.input[1])-v(d.input[2]))/10000;
-            for(int j=0;j<3;++j)detectorLow[j]=detectorA[j]*detectorLow[j]+(1-detectorA[j])*raw;
-        }
+        const double tap=v(deck.detectorTap);
+        for (int j=0;j<3;++j)
+            detectorLow[j]=detectorA[j]*detectorLow[j]+(1-detectorA[j])*tap;
         previousLevel=levelSet;
         return x[deck.out]/fullScalePeakVolts;
     }
@@ -269,7 +278,7 @@ public:
     double rawOutput() const { return x[deck.out]; }
 
 private:
-    double detectorPrevious=0,detectorSmooth=1;
+    double detectorOffset=0,detectorSmooth=1;
     std::array<double,3> detectorLow{},detectorA{};
     std::array<double,4> detectorWeights{1,0,0,0};
     struct History { double previous, older; };
@@ -288,6 +297,7 @@ private:
 
     void prepareHistory() {
         std::copy(constantRhs.begin(),constantRhs.end(),sampleRhs.begin());
+        sampleRhs[deck.detectorHpfSource]+=detectorOffset;
         for (const auto& term : knownTerms)
             sampleRhs[term.row]+=term.g*fixed[term.column];
         for (const auto& d : deck.capacitors) {
@@ -430,20 +440,6 @@ private:
             double value=0;
             std::array<double,4> slope{};
             switch (d.kind) {
-                case Behavior::detector: {
-                    const double raw=a+(b-c)/10000;
-                    double input=detectorWeights[0]*raw, inputSlope=detectorWeights[0];
-                    for(int j=0;j<3;++j){input+=detectorWeights[j+1]*detectorA[j]*(raw-detectorLow[j]);inputSlope+=detectorWeights[j+1]*detectorA[j];}
-                    const double argument=(p[2]-e+c)/p[3];
-                    const double factor=p[0]/(p[1]*p[1])*std::exp(std::clamp(argument,-35.,35.));
-                    value=factor*(input*input+1e-18);
-                    if (value<0.002) {
-                        const double exponentSlope=std::abs(argument)<35?value/p[3]:0;
-                        slope={2*factor*input*inputSlope,2*factor*input*inputSlope/10000,
-                               exponentSlope-2*factor*input*inputSlope/10000,-exponentSlope};
-                    } else value=0.002;
-                    break;
-                }
                 case Behavior::comparator: {
                     const double argument=(c-e)/0.003;
                     const double t=std::abs(argument)<19?std::tanh(argument):std::copysign(1.,argument);

@@ -20,7 +20,7 @@ public:
         close();
         module=LoadLibraryExW(path,nullptr,LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR|LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
         if (!module) return false;
-        const auto load=reinterpret_cast<LoadApi>(GetProcAddress(module,"dbx163x_native_api"));
+        const auto load=reinterpret_cast<LoadApi>(GetProcAddress(module,"compressor163xl_native_api"));
         api=load?load():nullptr;
         if (api && api->version==apiVersion) instance=api->create();
         if (instance) return true;

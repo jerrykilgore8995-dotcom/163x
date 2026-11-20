@@ -1,25 +1,26 @@
 cmake_minimum_required(VERSION 3.22)
-project(Compressor163X VERSION 0.1.0 LANGUAGES CXX)
+project(Compressor163XL VERSION 0.1.0 LANGUAGES CXX)
 
 include(FetchContent)
 FetchContent_Declare(JUCE GIT_REPOSITORY https://github.com/juce-framework/JUCE.git
                          GIT_TAG 8.0.10 GIT_SHALLOW TRUE)
 FetchContent_MakeAvailable(JUCE)
 
-juce_add_plugin(Compressor163X
+juce_add_plugin(Compressor163XL
     COMPANY_NAME Kilgore
     PLUGIN_MANUFACTURER_CODE Jkil
-    PLUGIN_CODE K63X
-    PRODUCT_NAME "163X"
+    PLUGIN_CODE K6XL
+    BUNDLE_ID com.kilgore.163xl
+    PRODUCT_NAME "163XL"
     FORMATS VST3
     IS_SYNTH FALSE
     COPY_PLUGIN_AFTER_BUILD FALSE
     VST3_CATEGORIES Fx Dynamics)
-target_sources(Compressor163X PRIVATE Plugin.cpp)
-target_compile_features(Compressor163X PRIVATE cxx_std_20)
-target_compile_definitions(Compressor163X PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0
+target_sources(Compressor163XL PRIVATE Plugin.cpp)
+target_compile_features(Compressor163XL PRIVATE cxx_std_20)
+target_compile_definitions(Compressor163XL PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0
                                                  JUCE_VST3_CAN_REPLACE_VST2=0 NOMINMAX)
-target_link_libraries(Compressor163X PRIVATE juce::juce_audio_processors juce::juce_gui_basics
+target_link_libraries(Compressor163XL PRIVATE juce::juce_audio_processors juce::juce_gui_basics
                                            juce::juce_recommended_config_flags)
 juce_add_console_app(Vst3Smoke)
 target_sources(Vst3Smoke PRIVATE Vst3Smoke.cpp Plugin.cpp)

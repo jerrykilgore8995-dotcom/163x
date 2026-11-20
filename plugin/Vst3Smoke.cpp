@@ -14,16 +14,15 @@ juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter();
 
 int main(int argc,char** argv) {
     std::cerr<<std::unitbuf;
-    if (argc!=2 && argc!=3) {
+    if (argc!=2) {
         std::cerr<<"Expected one VST3 bundle argument\n";
         return 2;
     }
     std::cerr<<"Initializing the VST3 host\n";
     juce::ScopedJuceInitialiser_GUI gui;
     const juce::File bundle(juce::String::fromUTF8(argv[1]));
-    const bool newMode=argc==3 && std::string(argv[2])=="new";
     const auto dll=bundle.getChildFile("Contents").getChildFile("Resources")
-        .getChildFile(newMode?"163x-new-native.dll":"163x-native.dll").getFullPathName();
+        .getChildFile("163xl-native.dll").getFullPathName();
     juce::AudioPluginFormatManager formats;
     auto format=std::make_unique<juce::VST3PluginFormat>();
     juce::OwnedArray<juce::PluginDescription> descriptions;
@@ -41,15 +40,15 @@ int main(int argc,char** argv) {
         std::cerr<<error<<'\n';
         return 4;
     }
-    bool modeFound=false;
-    for(auto* param:vst->getParameters())if(param->getName(128)=="Circuit Mode"){param->setValueNotifyingHost(newMode?1.f:0.f);modeFound=true;}
-    if(!modeFound)return 15;
+    if (descriptions[0]->name != "163XL") return 15;
+    for (auto* param : vst->getParameters())
+        if (param->getName(128) == "Circuit Mode") return 16;
     {
         std::cerr<<"Rendering the editor\n";
         std::unique_ptr<juce::AudioProcessor> processor(createPluginFilter());
         std::unique_ptr<juce::AudioProcessorEditor> panel(processor->createEditorIfNeeded());
         const auto image=panel->createComponentSnapshot(panel->getLocalBounds(),true,2);
-        const auto path=juce::File::getCurrentWorkingDirectory().getChildFile("163X-faceplate.png");
+        const auto path=juce::File::getCurrentWorkingDirectory().getChildFile("163XL-faceplate.png");
         juce::FileOutputStream png(path);
         if (!png.openedOk() || !juce::PNGImageFormat().writeImageToStream(image,png)) return 5;
     }

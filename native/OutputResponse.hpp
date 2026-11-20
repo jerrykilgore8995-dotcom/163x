@@ -6,9 +6,8 @@
 
 namespace mkii::native {
 
-// The fixed-step nodal solve attenuates the upper band more than the same
-// circuit in continuous time. Calibrate the wet output against the deck's
-// small-signal AC response, downstream of the detector and VCA.
+// Match the fixed-step OA3 output to the continuous-time deck.
+// This correction runs downstream of the detector and VCA.
 class OutputResponse {
 public:
     void prepare(double rate) {
@@ -33,15 +32,15 @@ public:
 
 private:
     struct Fit {double rate,b0,b1,a1,a2;};
-    // Stable high shelves fitted to measured native error at each rate.
+    // Stable biquads fitted to complex native/SPICE measurements at each rate.
     // Denominator interpolation preserves second-order stability.
     static constexpr std::array<Fit,6> calibration{{
-        { 44100,1.13126808, 0.28053696, 0.40076049,0.10291232},
-        { 48000,1.14051862, 0.24638881, 0.37846188,0.10819685},
-        { 88200,1.16536720,-0.27690366,-0.07577895,0.14991704},
-        { 96000,1.16331640,-0.34629237,-0.14273356,0.15688481},
-        {176400,1.17461130,-0.67841384,-0.43882141,0.19919185},
-        {192000,1.23117385,-0.66981148,-0.35761749,0.18792712},
+        { 44100,1.01858080, 1.32021753, 1.30986773,0.35766443},
+        { 48000,1.00680422, 1.48174872, 1.46395453,0.53030228},
+        { 88200,1.00837084,-0.47186444,-0.45768561,0.64206676},
+        { 96000,1.00693041,-0.68798251,-0.67284093,0.61340085},
+        {176400,0.99996921,-1.12965262,-1.11920522,0.44059522},
+        {192000,1.00012496,-1.12759612,-1.11591669,0.41602207},
     }};
     double b0=1,b1=0,b2=0,a1=0,a2=0,z1=0,z2=0;
 };

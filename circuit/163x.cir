@@ -1,6 +1,5 @@
-dbx 163X with THAT2180B retrofit, 115 V mains version
+163XL with THAT4301 retrofit, 115 V mains version
 .include vendor/LF353.MOD
-.include vendor/NE5534.301
 .include vendor/NJM4558.lib
 .include vendor/4301_Macro_01.lib
 .include device-models.inc

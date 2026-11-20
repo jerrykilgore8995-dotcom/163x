@@ -46,7 +46,7 @@ quit
 .end
 """)
         run = subprocess.run([args.ngspice, "--batch" if args.shared_worker else "-b", deck.name],
-                             cwd=work, capture_output=True, text=True, timeout=240)
+                             cwd=work, capture_output=True, text=True, timeout=1800)
         log = run.stdout + run.stderr
         if run.returncode or "aborted" in log or not (work / "trace.txt").is_file():
             raise RuntimeError(log[-3000:])

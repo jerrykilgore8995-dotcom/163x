@@ -1,0 +1,36 @@
+name: 163X stock timing diagnosis
+on:
+  push:
+    branches: [163x-4301-blackmer-cells]
+    paths: ['tools/stock_timing_diagnosis.py','.github/workflows/stock-timing-diagnosis.yml']
+  workflow_dispatch:
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [standalone, connected, old]
+    env:
+      MODE: ${{ matrix.mode }}
+    steps:
+      - uses: actions/checkout@v4
+      - if: matrix.mode == 'old'
+        uses: actions/checkout@v4
+        with:
+          ref: 163x-turbo-lp-hpf
+          path: old
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: sudo apt-get update -qq && sudo apt-get install -y ngspice poppler-utils && pip install numpy
+      - run: python tools/prepare_models.py
+      - if: matrix.mode == 'old'
+        run: python old/tools/prepare_models.py
+      - run: python tools/stock_timing_diagnosis.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: stock-timing-${{ matrix.mode }}
+          path: measurements/

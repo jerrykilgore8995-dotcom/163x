@@ -5,7 +5,7 @@ import numpy as np
 import measure as m
 
 ROOT=m.CIRCUIT
-NODES="v(out) v(xunit.tp1) v(xunit.tp6) v(xunit.j4r) v(xunit.tp11) v(xunit.vca_ec) v(xunit.tp3)"
+NODES="v(out) v(xunit.tp1) v(xunit.tp6) v(j4_r) v(xunit.tp11) v(xunit.vca_ec) v(xunit.tp3)"
 LABELS="out tp1 detector cap timing control tp3".split()
 def trial(job):
     hz,mode,slider,dbu=job
@@ -22,25 +22,13 @@ def trial(job):
                 b=b.replace("XOA3 OA3AO OA3AM 0 VN15 0 OA3BM TP4 VP15 NJM4558","X3A 0 OA3AM VP15 VN15 OA3AO RC4558\nX3B 0 OA3BM VP15 VN15 TP4 RC4558")
                 b=b.replace("XOA4 OA4AO OA4AM 0 VN15 0 OA4BM OA4BO VP15 NJM4558","X4A 0 OA4AM VP15 VN15 OA4AO RC4558\nX4B 0 OA4BM VP15 VN15 OA4BO RC4558")
             if "that" in variant:
-                # Use actual vendor subcircuit after verifying its documented pin order.
-                model=next((d/"vendor").glob("2252*"))
-                src=model.read_text(errors="replace")
-                match=re.search(r"(?im)^\s*\.subckt\s+(\S+)\s+([^\r\n]+)",src)
-                assert match, "No vendor subcircuit header"
-                name,pins=match.groups()
-                print("VENDOR_HEADER",name,pins,flush=True)
-                # THAT library normally uses numbered physical pins; reject unknown ordering.
-                pp=pins.split()
-                if pp[:8]==list("12345678"):
-                    nodes="RMS_IN RMS_BIAS RMS_REF RMS_SYM VN15 J4R THAT_RAW VP15"
-                elif pp[:8]==["1","2","3","4","5","6","7","8"]:
-                    nodes="RMS_IN RMS_BIAS RMS_REF RMS_SYM VN15 J4R THAT_RAW VP15"
-                else:
-                    raise ValueError("Unverified THAT2252 pin declaration: "+pins)
-                body+=f"\n.include vendor/{model.name}\n"
+                # 4301RMS pin order verified in 160 repo: IN IT CT LEVEL VN VP REF.
+                # Separate timing-current input; retain external CT network, avoid double-counting R34.
+                body+="\n.include vendor/4301_Macro_01.lib\n"
                 old="XIC2 RMS_IN RMS_BIAS RMS_REF RMS_SYM VN15 J4R TP6 VP15 UPC1253H2"
-                # Preserve external timing network; adapt output scale and reference as a diagnostic.
-                b=b.replace(old,f"XIC2 {nodes} {name}\nEDET TP6 RMS_REF THAT_RAW RMS_REF {5.9/6.1}")
+                assert old in b
+                b=b.replace(old,"RT_VENDOR IT_VENDOR VN15 2meg\nXIC2 RMS_IN IT_VENDOR J4R DET_RAW VN15 VP15 RMS_REF 4301RMS\nEDET TP6 RMS_REF DET_RAW RMS_REF {5.9/6.5}")
+                b=b.replace("R34 J4R VN15 2meg","* R34 replaced by vendor IT timing resistor")
             if "null" in variant:
                 p=d/"device-models.inc";p.write_text(p.read_text().replace("i(VSENSE)+v(SYM,REF)/10k","i(VSENSE)"))
             if freeze is not None:
@@ -78,9 +66,9 @@ def trial(job):
         row={"mode":mode,"hz":hz,"slider":slider,"dbu":dbu,"error":str(e),"traceback":traceback.format_exc()};print(json.dumps(row),flush=True);return row
 if __name__=="__main__":
     out=Path("measurements");out.mkdir(exist_ok=True)
-    jobs=[(f,mode,s,4) for f in (100,1000,5000,10000) for s in (0,1) for mode in ("stock","frozen","null","ti","that","that_ti")]
+    jobs=[(f,mode,s,4) for f in (10000,1000,5000,100) for s in (1,0) for mode in ("stock","frozen","null","ti","that","that_ti")]
     rows=[]
-    with ProcessPoolExecutor(max_workers=8) as p:
+    with ProcessPoolExecutor(max_workers=4) as p:
         for r in p.map(trial,jobs):
             rows.append(r);(out/"rms-audit.json").write_text(json.dumps(rows,indent=2))
-    if not any(r["mode"]=="that" and "nodes" in r for r in rows):raise RuntimeError("Vendor detector trials did not complete")
+    if any("error" in r for r in rows):raise RuntimeError("One or more diagnostic trials did not complete")

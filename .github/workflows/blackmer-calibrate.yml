@@ -1,0 +1,86 @@
+name: 163X Blackmer physical calibration
+on:
+  push:
+    branches: [163x-4301-blackmer-cells]
+    paths: ['tools/blackmer_calibrate.py','.github/workflows/blackmer-calibrate.yml']
+  workflow_dispatch:
+jobs:
+  calibrate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {kind: line, case: 1000, rms: '62k', rt: '2meg', ct: '10u', trim: '0'}
+          - {kind: line, case: 1000, rms: '62k', rt: '2meg', ct: '10u', trim: '0.25'}
+          - {kind: line, case: 1000, rms: '62k', rt: '2meg', ct: '10u', trim: '0.5'}
+          - {kind: line, case: 1000, rms: '62k', rt: '2meg', ct: '10u', trim: '0.75'}
+          - {kind: line, case: 1000, rms: '62k', rt: '2meg', ct: '10u', trim: '1'}
+          - {kind: line, case: 1000, rms: '28.8k', rt: '2meg', ct: '10u', trim: '0.5'}
+          - {kind: line, case: 1000, rms: '33k', rt: '2meg', ct: '10u', trim: '0.5'}
+          - {kind: line, case: 1000, rms: '39k', rt: '2meg', ct: '10u', trim: '0.5'}
+          - {kind: line, case: 1000, rms: '47k', rt: '2meg', ct: '10u', trim: '0.5'}
+          - {kind: timing, case: 10, rms: '28.8k', rt: '2meg', ct: '10u', trim: '0.5'}
+          - {kind: timing, case: 10, rms: '28.8k', rt: '1.65meg', ct: '10u', trim: '0.5'}
+          - {kind: timing, case: 20, rms: '28.8k', rt: '2meg', ct: '10u', trim: '0.5'}
+          - {kind: timing, case: 20, rms: '28.8k', rt: '1.65meg', ct: '10u', trim: '0.5'}
+          - {kind: timing, case: 30, rms: '28.8k', rt: '2meg', ct: '10u', trim: '0.5'}
+          - {kind: timing, case: 30, rms: '28.8k', rt: '1.65meg', ct: '10u', trim: '0.5'}
+          - {kind: timing, case: 10, rms: '39k', rt: '2meg', ct: '10u', trim: '0.5'}
+          - {kind: timing, case: 10, rms: '39k', rt: '1.65meg', ct: '10u', trim: '0.5'}
+          - {kind: timing, case: 20, rms: '39k', rt: '2meg', ct: '10u', trim: '0.5'}
+          - {kind: timing, case: 20, rms: '39k', rt: '1.65meg', ct: '10u', trim: '0.5'}
+          - {kind: timing, case: 30, rms: '39k', rt: '2meg', ct: '10u', trim: '0.5'}
+          - {kind: timing, case: 30, rms: '39k', rt: '1.65meg', ct: '10u', trim: '0.5'}
+          - {kind: timing, case: 10, rms: '62k', rt: '2meg', ct: '10u', trim: '0.5'}
+          - {kind: timing, case: 10, rms: '62k', rt: '1.65meg', ct: '10u', trim: '0.5'}
+          - {kind: timing, case: 20, rms: '62k', rt: '2meg', ct: '10u', trim: '0.5'}
+          - {kind: timing, case: 20, rms: '62k', rt: '1.65meg', ct: '10u', trim: '0.5'}
+          - {kind: timing, case: 30, rms: '62k', rt: '2meg', ct: '10u', trim: '0.5'}
+          - {kind: timing, case: 30, rms: '62k', rt: '1.65meg', ct: '10u', trim: '0.5'}
+          - {kind: ac, case: 1000, rms: '28.8k', rt: '2meg', ct: '10u', trim: '0.5'}
+          - {kind: ac, case: 1000, rms: '39k', rt: '2meg', ct: '10u', trim: '0.5'}
+          - {kind: ac, case: 1000, rms: '62k', rt: '2meg', ct: '10u', trim: '0.5'}
+    env:
+      AUDIT_MODE: physical4301
+      AUDIT_KIND: ${{ matrix.kind }}
+      AUDIT_CASE: ${{ matrix.case }}
+      RMS_R: ${{ matrix.rms }}
+      TIME_R: ${{ matrix.rt }}
+      TIME_C: ${{ matrix.ct }}
+      TRIM: ${{ matrix.trim }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: sudo apt-get update -qq && sudo apt-get install -y ngspice poppler-utils && pip install numpy
+      - run: python tools/prepare_models.py
+      - run: python tools/blackmer_calibrate.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: calibration-${{ strategy.job-index }}
+          path: measurements/
+  native-deck:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: sudo apt-get update -qq && sudo apt-get install -y ngspice poppler-utils && pip install numpy
+      - run: python tools/prepare_models.py
+      - run: python tools/native_seed.py build/seed.raw
+      - run: python native/compile_deck.py circuit build/seed.raw build/Deck.hpp --quiet-rails
+      - run: |
+          g++ -std=c++20 -O2 -I build native/GenerateSolve.cpp -o build/generate
+          build/generate build/GeneratedSolve.hpp
+          g++ -std=c++20 -O2 -I build native/ToneProbe.cpp -o build/tones
+          build/tones > build/native.csv
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-prototype
+          path: build/

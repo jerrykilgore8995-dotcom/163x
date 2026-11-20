@@ -1,0 +1,172 @@
+name: THAT DN125 full circuit characterization
+on:
+  push:
+    branches: [163x-that-dn125]
+    paths: ['.github/workflows/dn125-full-audit.yml']
+  workflow_dispatch:
+jobs:
+  measure:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      max-parallel: 16
+      matrix:
+        include:
+          - {kind: harmonics, hz: '100', dbu: '-8', more: '0', target: endpoint, protocol: new}
+          - {kind: harmonics, hz: '100', dbu: '-8', more: '1', target: endpoint, protocol: new}
+          - {kind: harmonics, hz: '100', dbu: '-4', more: '0', target: endpoint, protocol: new}
+          - {kind: harmonics, hz: '100', dbu: '-4', more: '1', target: endpoint, protocol: new}
+          - {kind: harmonics, hz: '100', dbu: '0', more: '0', target: endpoint, protocol: new}
+          - {kind: harmonics, hz: '100', dbu: '0', more: '1', target: endpoint, protocol: new}
+          - {kind: harmonics, hz: '100', dbu: '4', more: '0', target: endpoint, protocol: new}
+          - {kind: harmonics, hz: '100', dbu: '4', more: '1', target: endpoint, protocol: new}
+          - {kind: harmonics, hz: '100', dbu: '8', more: '0', target: endpoint, protocol: new}
+          - {kind: harmonics, hz: '100', dbu: '8', more: '1', target: endpoint, protocol: new}
+          - {kind: harmonics, hz: '1000', dbu: '-8', more: '0', target: endpoint, protocol: new}
+          - {kind: harmonics, hz: '1000', dbu: '-8', more: '1', target: endpoint, protocol: new}
+          - {kind: harmonics, hz: '1000', dbu: '-4', more: '0', target: endpoint, protocol: new}
+          - {kind: harmonics, hz: '1000', dbu: '-4', more: '1', target: endpoint, protocol: new}
+          - {kind: harmonics, hz: '1000', dbu: '0', more: '0', target: endpoint, protocol: new}
+          - {kind: harmonics, hz: '1000', dbu: '0', more: '1', target: endpoint, protocol: new}
+          - {kind: harmonics, hz: '1000', dbu: '4', more: '0', target: endpoint, protocol: new}
+          - {kind: harmonics, hz: '1000', dbu: '4', more: '1', target: endpoint, protocol: new}
+          - {kind: harmonics, hz: '1000', dbu: '8', more: '0', target: endpoint, protocol: new}
+          - {kind: harmonics, hz: '1000', dbu: '8', more: '1', target: endpoint, protocol: new}
+          - {kind: harmonics, hz: '5000', dbu: '-8', more: '0', target: endpoint, protocol: new}
+          - {kind: harmonics, hz: '5000', dbu: '-8', more: '1', target: endpoint, protocol: new}
+          - {kind: harmonics, hz: '5000', dbu: '-4', more: '0', target: endpoint, protocol: new}
+          - {kind: harmonics, hz: '5000', dbu: '-4', more: '1', target: endpoint, protocol: new}
+          - {kind: harmonics, hz: '5000', dbu: '0', more: '0', target: endpoint, protocol: new}
+          - {kind: harmonics, hz: '5000', dbu: '0', more: '1', target: endpoint, protocol: new}
+          - {kind: harmonics, hz: '5000', dbu: '4', more: '0', target: endpoint, protocol: new}
+          - {kind: harmonics, hz: '5000', dbu: '4', more: '1', target: endpoint, protocol: new}
+          - {kind: harmonics, hz: '5000', dbu: '8', more: '0', target: endpoint, protocol: new}
+          - {kind: harmonics, hz: '5000', dbu: '8', more: '1', target: endpoint, protocol: new}
+          - {kind: harmonics, hz: '10000', dbu: '-8', more: '0', target: endpoint, protocol: new}
+          - {kind: harmonics, hz: '10000', dbu: '-8', more: '1', target: endpoint, protocol: new}
+          - {kind: harmonics, hz: '10000', dbu: '-4', more: '0', target: endpoint, protocol: new}
+          - {kind: harmonics, hz: '10000', dbu: '-4', more: '1', target: endpoint, protocol: new}
+          - {kind: harmonics, hz: '10000', dbu: '0', more: '0', target: endpoint, protocol: new}
+          - {kind: harmonics, hz: '10000', dbu: '0', more: '1', target: endpoint, protocol: new}
+          - {kind: harmonics, hz: '10000', dbu: '4', more: '0', target: endpoint, protocol: new}
+          - {kind: harmonics, hz: '10000', dbu: '4', more: '1', target: endpoint, protocol: new}
+          - {kind: harmonics, hz: '10000', dbu: '8', more: '0', target: endpoint, protocol: new}
+          - {kind: harmonics, hz: '10000', dbu: '8', more: '1', target: endpoint, protocol: new}
+          - {kind: timing, hz: '1000', dbu: '-8', more: '0', target: endpoint, protocol: new}
+          - {kind: timing, hz: '1000', dbu: '-8', more: '1', target: endpoint, protocol: new}
+          - {kind: timing, hz: '1000', dbu: '-4', more: '0', target: endpoint, protocol: new}
+          - {kind: timing, hz: '1000', dbu: '-4', more: '1', target: endpoint, protocol: new}
+          - {kind: timing, hz: '1000', dbu: '0', more: '0', target: endpoint, protocol: new}
+          - {kind: timing, hz: '1000', dbu: '0', more: '1', target: endpoint, protocol: new}
+          - {kind: timing, hz: '1000', dbu: '4', more: '0', target: endpoint, protocol: new}
+          - {kind: timing, hz: '1000', dbu: '4', more: '1', target: endpoint, protocol: new}
+          - {kind: timing, hz: '1000', dbu: '8', more: '0', target: endpoint, protocol: new}
+          - {kind: timing, hz: '1000', dbu: '8', more: '1', target: endpoint, protocol: new}
+          - {kind: timing, hz: '1000', dbu: '12', more: '0', target: endpoint, protocol: new}
+          - {kind: timing, hz: '1000', dbu: '12', more: '1', target: endpoint, protocol: new}
+          - {kind: timing, hz: '1000', dbu: '18', more: '0', target: endpoint, protocol: new}
+          - {kind: timing, hz: '1000', dbu: '18', more: '1', target: endpoint, protocol: new}
+          - {kind: timing, hz: '1000', dbu: '-8', more: '0', target: '10', protocol: '160'}
+          - {kind: timing, hz: '1000', dbu: '-8', more: '0', target: '20', protocol: '160'}
+          - {kind: timing, hz: '1000', dbu: '-8', more: '0', target: '30', protocol: '160'}
+          - {kind: timing, hz: '1000', dbu: '-4', more: '0', target: '10', protocol: '160'}
+          - {kind: timing, hz: '1000', dbu: '-4', more: '0', target: '20', protocol: '160'}
+          - {kind: timing, hz: '1000', dbu: '-4', more: '0', target: '30', protocol: '160'}
+          - {kind: timing, hz: '1000', dbu: '0', more: '0', target: '10', protocol: '160'}
+          - {kind: timing, hz: '1000', dbu: '0', more: '0', target: '20', protocol: '160'}
+          - {kind: timing, hz: '1000', dbu: '0', more: '0', target: '30', protocol: '160'}
+          - {kind: timing, hz: '1000', dbu: '4', more: '0', target: '10', protocol: '160'}
+          - {kind: timing, hz: '1000', dbu: '4', more: '0', target: '20', protocol: '160'}
+          - {kind: timing, hz: '1000', dbu: '4', more: '0', target: '30', protocol: '160'}
+          - {kind: timing, hz: '1000', dbu: '8', more: '0', target: '10', protocol: '160'}
+          - {kind: timing, hz: '1000', dbu: '8', more: '0', target: '20', protocol: '160'}
+          - {kind: timing, hz: '1000', dbu: '8', more: '0', target: '30', protocol: '160'}
+          - {kind: timing, hz: '1000', dbu: '12', more: '0', target: '10', protocol: '160'}
+          - {kind: timing, hz: '1000', dbu: '12', more: '0', target: '20', protocol: '160'}
+          - {kind: timing, hz: '1000', dbu: '12', more: '0', target: '30', protocol: '160'}
+          - {kind: timing, hz: '1000', dbu: '16', more: '0', target: '10', protocol: '160'}
+          - {kind: timing, hz: '1000', dbu: '16', more: '0', target: '20', protocol: '160'}
+          - {kind: timing, hz: '1000', dbu: '16', more: '0', target: '30', protocol: '160'}
+          - {kind: timing, hz: '1000', dbu: '20', more: '0', target: '10', protocol: '160'}
+          - {kind: timing, hz: '1000', dbu: '20', more: '0', target: '20', protocol: '160'}
+          - {kind: timing, hz: '1000', dbu: '20', more: '0', target: '30', protocol: '160'}
+          - {kind: curve, hz: '1000', dbu: '-60', more: '0', target: endpoint, protocol: new}
+          - {kind: curve, hz: '1000', dbu: '-50', more: '0', target: endpoint, protocol: new}
+          - {kind: curve, hz: '1000', dbu: '-40', more: '0', target: endpoint, protocol: new}
+          - {kind: curve, hz: '1000', dbu: '-30', more: '0', target: endpoint, protocol: new}
+          - {kind: curve, hz: '1000', dbu: '-20', more: '0', target: endpoint, protocol: new}
+          - {kind: curve, hz: '1000', dbu: '-10', more: '0', target: endpoint, protocol: new}
+          - {kind: curve, hz: '1000', dbu: '0', more: '0', target: endpoint, protocol: new}
+          - {kind: curve, hz: '1000', dbu: '10', more: '0', target: endpoint, protocol: new}
+          - {kind: curve, hz: '1000', dbu: '20', more: '0', target: endpoint, protocol: new}
+          - {kind: curve, hz: '1000', dbu: '-60', more: '0.2', target: endpoint, protocol: new}
+          - {kind: curve, hz: '1000', dbu: '-50', more: '0.2', target: endpoint, protocol: new}
+          - {kind: curve, hz: '1000', dbu: '-40', more: '0.2', target: endpoint, protocol: new}
+          - {kind: curve, hz: '1000', dbu: '-30', more: '0.2', target: endpoint, protocol: new}
+          - {kind: curve, hz: '1000', dbu: '-20', more: '0.2', target: endpoint, protocol: new}
+          - {kind: curve, hz: '1000', dbu: '-10', more: '0.2', target: endpoint, protocol: new}
+          - {kind: curve, hz: '1000', dbu: '0', more: '0.2', target: endpoint, protocol: new}
+          - {kind: curve, hz: '1000', dbu: '10', more: '0.2', target: endpoint, protocol: new}
+          - {kind: curve, hz: '1000', dbu: '20', more: '0.2', target: endpoint, protocol: new}
+          - {kind: curve, hz: '1000', dbu: '-60', more: '0.4', target: endpoint, protocol: new}
+          - {kind: curve, hz: '1000', dbu: '-50', more: '0.4', target: endpoint, protocol: new}
+          - {kind: curve, hz: '1000', dbu: '-40', more: '0.4', target: endpoint, protocol: new}
+          - {kind: curve, hz: '1000', dbu: '-30', more: '0.4', target: endpoint, protocol: new}
+          - {kind: curve, hz: '1000', dbu: '-20', more: '0.4', target: endpoint, protocol: new}
+          - {kind: curve, hz: '1000', dbu: '-10', more: '0.4', target: endpoint, protocol: new}
+          - {kind: curve, hz: '1000', dbu: '0', more: '0.4', target: endpoint, protocol: new}
+          - {kind: curve, hz: '1000', dbu: '10', more: '0.4', target: endpoint, protocol: new}
+          - {kind: curve, hz: '1000', dbu: '20', more: '0.4', target: endpoint, protocol: new}
+          - {kind: curve, hz: '1000', dbu: '-60', more: '0.6', target: endpoint, protocol: new}
+          - {kind: curve, hz: '1000', dbu: '-50', more: '0.6', target: endpoint, protocol: new}
+          - {kind: curve, hz: '1000', dbu: '-40', more: '0.6', target: endpoint, protocol: new}
+          - {kind: curve, hz: '1000', dbu: '-30', more: '0.6', target: endpoint, protocol: new}
+          - {kind: curve, hz: '1000', dbu: '-20', more: '0.6', target: endpoint, protocol: new}
+          - {kind: curve, hz: '1000', dbu: '-10', more: '0.6', target: endpoint, protocol: new}
+          - {kind: curve, hz: '1000', dbu: '0', more: '0.6', target: endpoint, protocol: new}
+          - {kind: curve, hz: '1000', dbu: '10', more: '0.6', target: endpoint, protocol: new}
+          - {kind: curve, hz: '1000', dbu: '20', more: '0.6', target: endpoint, protocol: new}
+          - {kind: curve, hz: '1000', dbu: '-60', more: '0.8', target: endpoint, protocol: new}
+          - {kind: curve, hz: '1000', dbu: '-50', more: '0.8', target: endpoint, protocol: new}
+          - {kind: curve, hz: '1000', dbu: '-40', more: '0.8', target: endpoint, protocol: new}
+          - {kind: curve, hz: '1000', dbu: '-30', more: '0.8', target: endpoint, protocol: new}
+          - {kind: curve, hz: '1000', dbu: '-20', more: '0.8', target: endpoint, protocol: new}
+          - {kind: curve, hz: '1000', dbu: '-10', more: '0.8', target: endpoint, protocol: new}
+          - {kind: curve, hz: '1000', dbu: '0', more: '0.8', target: endpoint, protocol: new}
+          - {kind: curve, hz: '1000', dbu: '10', more: '0.8', target: endpoint, protocol: new}
+          - {kind: curve, hz: '1000', dbu: '20', more: '0.8', target: endpoint, protocol: new}
+          - {kind: curve, hz: '1000', dbu: '-60', more: '1', target: endpoint, protocol: new}
+          - {kind: curve, hz: '1000', dbu: '-50', more: '1', target: endpoint, protocol: new}
+          - {kind: curve, hz: '1000', dbu: '-40', more: '1', target: endpoint, protocol: new}
+          - {kind: curve, hz: '1000', dbu: '-30', more: '1', target: endpoint, protocol: new}
+          - {kind: curve, hz: '1000', dbu: '-20', more: '1', target: endpoint, protocol: new}
+          - {kind: curve, hz: '1000', dbu: '-10', more: '1', target: endpoint, protocol: new}
+          - {kind: curve, hz: '1000', dbu: '0', more: '1', target: endpoint, protocol: new}
+          - {kind: curve, hz: '1000', dbu: '10', more: '1', target: endpoint, protocol: new}
+          - {kind: curve, hz: '1000', dbu: '20', more: '1', target: endpoint, protocol: new}
+          - {kind: ac, hz: '1000', dbu: '-85', more: '0', target: endpoint, protocol: new}
+          - {kind: ac, hz: '1000', dbu: '-85', more: '0.5', target: endpoint, protocol: new}
+          - {kind: ac, hz: '1000', dbu: '-85', more: '1', target: endpoint, protocol: new}
+          - {kind: timing, hz: '1000', dbu: '8', more: '0', target: '10', protocol: new}
+          - {kind: timing, hz: '1000', dbu: '8', more: '0', target: '20', protocol: new}
+          - {kind: timing, hz: '1000', dbu: '8', more: '0', target: '30', protocol: new}
+    env:
+      KIND: ${{ matrix.kind }}
+      HZ: ${{ matrix.hz }}
+      DBU: ${{ matrix.dbu }}
+      MORE: ${{ matrix.more }}
+      TARGET: ${{ matrix.target }}
+      PROTOCOL: ${{ matrix.protocol }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: sudo apt-get update -qq && sudo apt-get install -y ngspice && pip install numpy
+      - run: python tools/dn125_full_audit.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dn125-${{ strategy.job-index }}
+          path: measurements/

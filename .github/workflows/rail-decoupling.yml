@@ -1,0 +1,91 @@
+name: 163X local rail decoupling audit
+on:
+  push:
+    branches: [163x-rail-decoupling-audit]
+  workflow_dispatch:
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [common-10n, common-100n, common-100n-bulk, local-10n, local-100n, local-100n-bulk, local-highz-100n, local-highz-bulk]
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ngspice poppler-utils python3-numpy
+          python3 tools/prepare_models.py
+      - name: Apply diagnostic rail network only in runner
+        env:
+          VARIANT: ${{ matrix.variant }}
+        run: |
+          python3 - <<'PY'
+          import os,re
+          from pathlib import Path
+          p=Path('circuit/163x-board.inc')
+          b=p.read_text()
+          mode=os.environ['VARIANT']
+          local=mode.startswith('local')
+          cap='10n' if mode.endswith('10n') else '100n'
+          bulk=mode.endswith('bulk')
+          r,l=('0.5','100n') if 'highz' in mode else ('0.05','20n')
+          for name, caps, amps in [('LF',(3,4),('XOA1A','XOA1B')),('NE',(8,9),('XOA2',))]:
+              for pol,num in zip(('P','N'),caps):
+                  rail=f'V{pol}15'
+                  node=f'{rail}_{name}' if local else rail
+                  if local:
+                      b+= '' 
+                      lines=f'RTRACE_{name}_{pol} {rail} {node}_MID {r}\nLTRACE_{name}_{pol} {node}_MID {node} {l}\n'
+                      b=b.replace('.ends DBX163X',lines+'.ends DBX163X')
+                  b=re.sub(rf'(?m)^C{num} {rail} 0 10n$',f'C{num} {node} 0 {cap}',b)
+                  if bulk:
+                      lines=f'RBULK_{name}_{pol} {node} BULK_{name}_{pol} 0.2\nCBULK_{name}_{pol} BULK_{name}_{pol} 0 10u\n'
+                      b=b.replace('.ends DBX163X',lines+'.ends DBX163X')
+                  if local:
+                      for amp in amps:
+                          b=re.sub(rf'(?m)^{amp} .*$',lambda m: m[0].replace(' '+rail+' ',' '+node+' '),b)
+          p.write_text(b)
+          print(b)
+          PY
+      - name: Measure complete circuit and rail ripple
+        env:
+          VARIANT: ${{ matrix.variant }}
+        run: |
+          PYTHONPATH=tools python3 - <<'PY'
+          import os,json,argparse,math
+          from pathlib import Path
+          import numpy as np
+          import measure as m
+          out=Path('measurements');out.mkdir(exist_ok=True)
+          rows=[]
+          local=os.environ['VARIANT'].startswith('local')
+          nodes=['out','xunit.tp1','xunit.oa2o','xunit.vca_ec','xunit.vp15','xunit.vn15']
+          if local:nodes += ['xunit.vp15_lf','xunit.vn15_lf','xunit.vp15_ne','xunit.vn15_ne']
+          vectors=' '.join('v('+n+')' for n in nodes)
+          for f in (1000,10000,100,5000):
+              for slider in (0,1):
+                  a=argparse.Namespace(frequency=f,level_set=.5,load=10000,hiz_trim=None,code_model=None,ngspice='ngspice',shared_worker=False)
+                  for dbu in (4,12):
+                      try:
+                          body=m.bench_deck(a,.775*math.sqrt(2)*10**(dbu/20),slider,True)
+                          step=min(10e-6,.02/f)
+                          if step<10e-6:body+='\n.options cshunt=1f\n'
+                          start=.42;end=.52
+                          data,_=m.run_spice(a,body,f'save {vectors}\ntran {step} {end+step} {start-step} {step}\nwrdata trace.txt {vectors}')
+                          assert data[-1,0]>=end
+                          mask=(data[:,0]>=start)&(data[:,0]<=end)
+                          t=data[mask,0];y=data[mask,1:];w=np.sqrt(np.gradient(t));p=2*np.pi*f*t
+                          X=np.column_stack([np.ones(len(t))]+[v for k in range(1,11) for v in (np.cos(k*p),np.sin(k*p))])
+                          c=np.linalg.lstsq(X*w[:,None],y*w[:,None],rcond=None)[0];H=np.hypot(c[1::2],c[2::2])
+                          row=dict(f=f,slider=slider,dbu=dbu,out_dBu=float(20*np.log10(H[0,0]/(.775*np.sqrt(2)))),THD_pct=float(100*np.linalg.norm(H[1:,0])/H[0,0]),harmonics_dBc=(20*np.log10(np.maximum(H[:,0],1e-30)/H[0,0])).tolist(),rail_pp_V={n:float(np.ptp(y[:,i])) for i,n in enumerate(nodes) if '15' in n},rail_audio_peak_V={n:float(H[0,i]) for i,n in enumerate(nodes) if '15' in n})
+                      except Exception as e:row=dict(f=f,slider=slider,dbu=dbu,error=str(e))
+                      rows.append(row);print(json.dumps(row),flush=True);(out/'rail-audit.json').write_text(json.dumps(rows,indent=2))
+          if any('error' in r for r in rows):raise RuntimeError('Incomplete measurements')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rail-${{ matrix.variant }}
+          path: measurements/

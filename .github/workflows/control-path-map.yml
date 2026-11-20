@@ -1,0 +1,40 @@
+name: 163X control path transfer audit
+on:
+  push:
+    branches: [163x-4301-blackmer-cells]
+    paths: ['tools/control_path_map.py','.github/workflows/control-path-map.yml']
+  workflow_dispatch:
+jobs:
+  map:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [connected, old]
+        level: ['0','0.25']
+        slider: ['0','0.5','1']
+    env:
+      MODE: ${{ matrix.mode }}
+      LEVEL_SET: ${{ matrix.level }}
+      SLIDER: ${{ matrix.slider }}
+    steps:
+      - uses: actions/checkout@v4
+      - if: matrix.mode == 'old'
+        uses: actions/checkout@v4
+        with:
+          ref: 163x-turbo-lp-hpf
+          path: old
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: sudo apt-get update -qq && sudo apt-get install -y ngspice poppler-utils && pip install numpy
+      - run: python tools/prepare_models.py
+      - if: matrix.mode == 'old'
+        run: python old/tools/prepare_models.py
+      - run: python tools/control_path_map.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: map-${{ matrix.mode }}-${{ matrix.level }}-${{ matrix.slider }}
+          path: measurements/

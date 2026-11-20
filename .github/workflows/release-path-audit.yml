@@ -1,0 +1,41 @@
+name: 163X release path audit
+on:
+  push:
+    branches: [163x-4301-blackmer-cells]
+    paths: ['tools/release_path_audit.py','.github/workflows/release-path-audit.yml']
+  workflow_dispatch:
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {mode: connected, level: '0.25'}
+          - {mode: connected, level: '0'}
+          - {mode: old, level: '0.25'}
+          - {mode: standalone, level: '0.25'}
+    env:
+      MODE: ${{ matrix.mode }}
+      LEVEL_SET: ${{ matrix.level }}
+    steps:
+      - uses: actions/checkout@v4
+      - if: matrix.mode == 'old'
+        uses: actions/checkout@v4
+        with:
+          ref: 163x-turbo-lp-hpf
+          path: old
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: sudo apt-get update -qq && sudo apt-get install -y ngspice poppler-utils && pip install numpy
+      - run: python tools/prepare_models.py
+      - if: matrix.mode == 'old'
+        run: python old/tools/prepare_models.py
+      - run: python tools/release_path_audit.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: release-path-${{ matrix.mode }}-${{ matrix.level }}
+          path: measurements/

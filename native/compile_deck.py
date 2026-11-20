@@ -105,7 +105,29 @@ def expand(lines, prefix="", mapping=None, parent=None):
                 else:
                     raise ValueError(line)
         elif kind in "dqj":
-            value = prefix+args[-1] if prefix+args[-1] in models else args[-1]
+            terminals=3 if kind in "qj" else 2
+            model=args[terminals]
+            value=prefix+model if prefix+model in models else model
+            if len(args)>terminals+1:
+                if len(args)!=terminals+2: raise ValueError(line)
+                area=evaluate(args[terminals+1].removeprefix("area="),env)
+                if area<=0:raise ValueError(line)
+                if area!=1:
+                    typ,md=models[value]
+                    md=dict(md)
+                    if kind=="j":
+                        md["beta"]=md.get("beta",1e-4)*area
+                        md["is"]=md.get("is",1e-14)*area
+                    elif kind=="q":
+                        for key,default in (("is",1e-16),("ise",0),("isc",0),("ikf",0),("ikr",0),("cje",0),("cjc",0)):
+                            md[key]=md.get(key,default)*area
+                        for key in ("rb","rc","re"):
+                            if key in md:md[key]/=area
+                    else:
+                        for key,default in (("is",1e-14),("cjo",0)):md[key]=md.get(key,default)*area
+                        if "rs" in md:md["rs"]/=area
+                    value=name+"@area"
+                    models[value]=(typ,md)
         elif kind in "rclvi":
             expr = args[3] if args[2] == "dc" else args[2]
             if kind=="r": expr=" ".join(args[2:])

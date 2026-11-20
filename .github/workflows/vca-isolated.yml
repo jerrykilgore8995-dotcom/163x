@@ -1,0 +1,78 @@
+name: Isolated THAT2180B symmetry audit
+on:
+  push:
+    branches: [163x-vca-isolated-audit]
+  workflow_dispatch:
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ngspice python3-numpy
+          mkdir -p circuit/vendor
+          curl -fL --retry 3 https://thatcorp.com/wp-content/uploads/2020/11/THATMacroModels-Rev05.zip -o that.zip
+          unzip -jo that.zip 2180_Macro_01.lib -d circuit/vendor
+      - run: |
+          python3 - <<'PY'
+          import numpy as np, math, pathlib, re, subprocess, json, tempfile
+          src=pathlib.Path('circuit/vendor/2180_Macro_01.lib').read_text()
+          rows=[]
+          pathlib.Path('measurements').mkdir(exist_ok=True)
+          for bias in (-.85,-2.15,0):
+            for hz in (1000,100,5000,10000):
+              for gr in (0,3,7,15,20):
+                with tempfile.TemporaryDirectory() as td:
+                  p=pathlib.Path(td)
+                  model,n=re.subn(r'(?ims)(^\.SUBCKT THAT2180B\b.*?^Isym\s+0\s+4\s+DC\s+)-850nA',lambda m:m[1]+str(bias)+'u',src,count=1)
+                  assert n==1
+                  (p/'vendor.lib').write_text(model)
+                  dt=min(5e-6,.005/hz)
+                  end=.1+10/hz
+                  peak=.775*math.sqrt(2)*10**(4/20)
+                  (p/'bench.cir').write_text(f"""2180B isolated current cell
+          .include vendor.lib
+          VPLUS VP 0 15
+          VMINUS VN 0 -15
+          RBIAS VE VN 5.6k
+          VCTRL EC 0 {-gr*.0061}
+          VSIG SRC 0 SIN(0 {peak} {hz})
+          RIN SRC IN 18k
+          XVCA IN EC 0 VE 0 VP IO THAT2180B
+          VSENSE IO 0 0
+          BOUT OUT 0 V=-i(VSENSE)*20000
+          .options reltol=1e-5 abstol=1e-12
+          .control
+          set wr_singlescale
+          set wr_vecnames
+          tran {dt} {end} .1 {dt}
+          wrdata trace.txt v(out)
+          quit
+          .endc
+          .end
+          """)
+                  try:
+                    proc=subprocess.run(['ngspice','-b','bench.cir'],cwd=p,capture_output=True,text=True,timeout=60)
+                    a=np.loadtxt(p/'trace.txt',skiprows=1)
+                    assert a[-1,0]>=end-2*dt
+                    t,y=a[:,0],a[:,1]
+                    w=np.sqrt(np.gradient(t)); ph=2*np.pi*hz*t
+                    X=np.column_stack([np.ones(len(t))]+[fn(k*ph) for k in range(1,21) for fn in (np.cos,np.sin)])
+                    c=np.linalg.lstsq(X*w[:,None],y*w,rcond=None)[0]
+                    H=np.hypot(c[1::2],c[2::2])
+                    db=20*np.log10(np.maximum(H,1e-30)/H[0])
+                    fs=20*np.log10(np.maximum(H,1e-30)/(.775*np.sqrt(2)))-22
+                    row=dict(isym_uA=bias,hz=hz,commanded_gr=gr,fundamental_dBFS=float(fs[0]),normalized_dB=db.tolist(),absolute_dBFS=fs.tolist(),thd_pct=float(100*np.linalg.norm(H[1:])/H[0]))
+                  except Exception as e:
+                    row=dict(isym_uA=bias,hz=hz,commanded_gr=gr,error=str(e))
+                  rows.append(row);print(json.dumps(row),flush=True)
+                  pathlib.Path('measurements/vca-isolated.json').write_text(json.dumps(rows,indent=2))
+          if any('error' in r for r in rows): raise RuntimeError('Incomplete sweep')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vca-isolated
+          path: measurements/

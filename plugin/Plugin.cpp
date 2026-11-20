@@ -8,6 +8,7 @@
 #include <array>
 #include <atomic>
 #include <cmath>
+#include <memory>
 
 namespace {
 
@@ -31,10 +32,7 @@ public:
         : AudioProcessor(BusesProperties().withInput("Input",juce::AudioChannelSet::stereo(),true)
                                            .withOutput("Output",juce::AudioChannelSet::stereo(),true)),
           state(*this,nullptr,"Settings",parameters()) {
-        const auto path=runtimePath().getFullPathName();
-        if (oldEngine.open(path.toWideCharPointer())) setLatencySamples(oldEngine.latency());
-        const auto newPath=runtimePath(true).getFullPathName();
-        newEngine.open(newPath.toWideCharPointer());
+        // No circuit DLL or solver is instantiated until host prepare.
     }
 
     const juce::String getName() const override {return "163X";}
@@ -58,10 +56,14 @@ public:
     void prepareToPlay(double sampleRate,int blockSize) override {
         // Latch the circuit selection on prepare, never allocate or load a DLL in processBlock.
         activeNew=mode->load()>.5f;
-        auto& engine=activeNew?newEngine:oldEngine;
-        ready=engine.prepare(sampleRate,getTotalNumInputChannels(),blockSize);
-        if (ready) setLatencySamples(engine.latency());
-        lowBypass.prepare(sampleRate,engine.latency(),int(lp->load()));
+        ready=false;
+        engine.reset(); // destroys old instance, joins workers, unloads DLL before creating another
+        engine=std::make_unique<mkii::native::Client>();
+        const auto path=runtimePath(activeNew).getFullPathName();
+        ready=engine->open(path.toWideCharPointer()) && engine->prepare(sampleRate,getTotalNumInputChannels(),blockSize);
+        if (!ready) engine.reset();
+        if (ready) setLatencySamples(engine->latency());
+        lowBypass.prepare(sampleRate,ready?engine->latency():0,int(lp->load()));
         lowBuffer.setSize(getTotalNumInputChannels(),std::max(1,blockSize));
         turbo.prepare(sampleRate,turbocharge->load()!=0);
         failed.store(!ready);
@@ -69,8 +71,8 @@ public:
         psu.prepare(sampleRate);noiseSmooth=noise->load();noiseAlpha=float(1-std::exp(-1/(.01*sampleRate)));
     }
     void releaseResources() override {
-        oldEngine.stop();newEngine.stop();
         ready=false;
+        engine.reset();
     }
     void processBlock(juce::AudioBuffer<float>& audio,juce::MidiBuffer&) override {
         process(audio,false);
@@ -110,7 +112,7 @@ private:
 
     void process(juce::AudioBuffer<float>& audio,bool dry) {
         if (!ready || audio.getNumSamples()==0) return;
-        auto& engine=activeNew?newEngine:oldEngine;
+        auto& selected=*engine;
         const mkii::native::Controls controls{more->load(),(level->load()+30)/40,int(hpf->load())};
         const float inDb=inputTrim->load();
         if (!dry && inDb!=0.f) audio.applyGain(juce::Decibels::decibelsToGain(inDb));
@@ -128,7 +130,7 @@ private:
                 }
                 lowBypass.advance();
             }
-            complete=engine.process(ptr.data(),count,controls,isNonRealtime(),dry)&&complete;
+            complete=selected.process(ptr.data(),count,controls,isNonRealtime(),dry)&&complete;
             if(!dry)for(int i=0;i<count;++i){
                 turbo.update(turbocharge->load()!=0);
                 for(int c=0;c<audio.getNumChannels();++c)
@@ -146,11 +148,11 @@ private:
                 psu.advance();
             }
         }
-        failed.store(!complete || engine.failedSolves()!=0);
-        gainReduction.store(engine.readMeters().gainReductionDb);
+        failed.store(!complete || selected.failedSolves()!=0);
+        gainReduction.store(selected.readMeters().gainReductionDb);
     }
 
-    mkii::native::Client oldEngine,newEngine;
+    std::unique_ptr<mkii::native::Client> engine;
     bool activeNew=false;
     const std::atomic<float>* mode=state.getRawParameterValue("circuitMode");
     const std::atomic<float>* more=state.getRawParameterValue("compression");

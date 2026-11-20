@@ -1,0 +1,40 @@
+name: 163X RMS vendor and TI 4558 audit
+on:
+  push:
+    branches: [163x-rms-vendor-audit]
+  workflow_dispatch:
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ngspice poppler-utils
+          python -m pip install numpy
+          python tools/prepare_models.py
+          curl -fL --retry 3 https://www.ti.com/lit/zip/sloj053 -o ti.zip
+          unzip -jo ti.zip RC4558.301 -d circuit/vendor
+          curl -fL --retry 3 https://thatcorp.com/wp-content/uploads/2020/11/THATMacroModels-Rev05.zip -o that.zip
+          unzip -Z1 that.zip
+          python - <<'PY'
+          from zipfile import ZipFile
+          from pathlib import Path
+          with ZipFile('that.zip') as z:
+              for n in z.namelist():
+                  if '2252' in Path(n).name and n.lower().endswith(('.lib','.cir','.mod')):
+                      p=Path('circuit/vendor')/Path(n).name
+                      p.write_bytes(z.read(n))
+                      print(p.read_text(errors='replace'))
+          PY
+          cat circuit/vendor/RC4558.301
+      - run: python tools/rms_vendor_audit.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rms-vendor-audit
+          path: measurements/

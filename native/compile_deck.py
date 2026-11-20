@@ -159,6 +159,7 @@ def expand(lines, prefix="", mapping=None, parent=None):
 
 read(source/"163x.cir", True)
 expand(top)
+reduced_bias = {}
 if quiet_rails:
     # Both reference fixtures are available in tools/measure.py. For the
     # real-time audio/control deck preserve all loading at TP4, with static
@@ -176,11 +177,54 @@ if quiet_rails:
             return False
         return name.removeprefix("xunit.") not in board_power | board_meter
     devices=[part for part in devices if retain(part)]
+    # In the audio deck, use the stable closed-loop equivalent of the
+    # precision rectifier. Retain its input loading and CT filter.
+    assist = next(part for part in devices if part[1] == "xunit.gct_release")
+    gain = assist[3][2][0]
+    front_end = {"xunit.rct_in", "xunit.rct_fb", "xunit.dct_rect",
+                 "xunit.dct_fb", "xunit.gct_release"}
+    devices_before_reduction=devices
+    devices = [part for part in devices if part[1] not in front_end
+               and not part[1].startswith("xunit.xct_rect.")]
+    rectifier_input = next(part for part in devices_before_reduction if part[1] == "xunit.rct_in")
+    devices.extend((
+        ("r", "ct_rectifier_load", ["xunit.ct_i_f", "0"], rectifier_input[3]),
+        ("b", "ct_release", assist[2], ("release", ["xunit.ct_i_f"], [gain])),
+    ))
+
     devices.extend((
         ("v","v_rail_positive",["xunit.vp15","0"],15.0),
         ("v","v_rail_negative",["xunit.vn15","0"],-15.0),
         ("r","meter_input_load",["xunit.tp4","xunit.vn15"],50e6/12),
     ))
+    # Fit the small-signal control op amps with their input offsets, finite
+    # open-loop gain, dominant poles, and output resistance. Audio op amps
+    # and both Blackmer cells retain their full manufacturer device models.
+    for prefix,inp,inm,out in (
+        ("xunit.xoa3.x_u1", "0", "xunit.oa3am", "xunit.oa3ao"),
+        ("xunit.xoa3.x_u2", "0", "xunit.oa3bm", "xunit.tp4"),
+        ("xunit.xoa4.x_u1", "0", "xunit.oa4am", "xunit.oa4ao"),
+        ("xunit.xoa4.x_u2", "0", "xunit.oa4bm", "xunit.oa4bo"),
+        ("xunit.xoa1b", "0", "xunit.time_sum", "xunit.oa1bo"),
+    ):
+        devices=[p for p in devices if not p[1].startswith(prefix+".")]
+        lf353=prefix=="xunit.xoa1b"
+        bandwidth, gain, offset, rout = (4e6,100000,.005,40) if lf353 else (3e6,140000,-.006020,50)
+        compensation=1e-9
+        gm=2*math.pi*bandwidth*compensation
+        pole,buffer=prefix+".pole",prefix+".buffer"
+        reduced_bias[pole]=reduced_bias[buffer]=out
+        devices.extend((
+            ("g", prefix+".gm", ["0",pole], ([(inp,inm)],0,[gm])),
+            ("i", prefix+".offset", ["0",pole], gm*offset),
+            ("r", prefix+".gain", [pole,"0"],gain/gm),
+            ("c", prefix+".cap", [pole,"0"],compensation),
+            ("e", prefix+".driver", [buffer,"0"], ([(pole,"0")],0,[1])),
+            ("r", prefix+".out", [buffer,out],rout),
+        ))
+        if not lf353:
+            devices.append(("i",prefix+".bias",[ "xunit.vp15",inm],27e-9))
+
 used = {ctrl for k,_,_,d in devices if k in "fh" for ctrl in d[0]}
 known = {"0": (0,0)}
 known.update(src=(1,0),mains=(2,0))
@@ -230,7 +274,7 @@ def bias(name):
         return op.get(f"v({spice_name(instance)}#{pin})",
                       op.get(f"v({ext})",known.get(ext,(0,0))[1]))
     if name in nodes:
-        return op[f"v({name})"]
+        return op[f"v({reduced_bias.get(name,name)})"]
     branch = spice_name(name)
     return op.get(f"i({branch})", op.get(f"i({branch}#branch)", op.get("i(a$poly$"+branch+")",0.)))
 

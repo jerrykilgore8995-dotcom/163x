@@ -105,7 +105,7 @@ struct Control { int a,b,p,m; double gain; };
 struct DModel { double is,n,cjo,vj,m,tt,fc,bv,ibv; };
 struct Inductance {int row,column; double value,q1=0,q2=0;};
 struct Cubic {int a,b,control;double gain;};
-enum class Behavior {comparator,positiveRegulator,negativeRegulator};
+enum class Behavior {release,comparator,positiveRegulator,negativeRegulator};
 struct Behavioral {Behavior kind;int a,b;std::array<int,4> input;std::array<double,4> param;};
 struct QModel {
     double is,bf,nf,vaf,ikf,ise,ne,br,nr,var,ikr,isc,nc,cje,vje,mje,cjc,vjc,mjc,tf,tr,fc;
@@ -440,6 +440,13 @@ private:
             double value=0;
             std::array<double,4> slope{};
             switch (d.kind) {
+                case Behavior::release: {
+                    if (a < 0) {
+                        value = -p[0]*a;
+                        slope[0] = -p[0];
+                    }
+                    break;
+                }
                 case Behavior::comparator: {
                     const double argument=(c-e)/0.003;
                     const double t=std::abs(argument)<19?std::tanh(argument):std::copysign(1.,argument);

@@ -1,11 +1,7 @@
-# 163X native Windows VST3
+# 163XL native solver
 
-Install the complete `163X.vst3` bundle. The runtime is an in-process modified nodal solver and targets Windows x64 with AVX2. ngspice is used to seed and compare the compiled circuit during development and build verification. Audio uses one independent circuit per channel, with the rear line input as its electrical entry point.
+See the [163XL README](../README.md) for installation, timing and behavior.
 
-The compiler flattens the 163X SPICE audio and control network, including the OverEasy circuit, RMS timing network, discrete diodes, op-amp and THAT2180B macromodels. The real-time profile sets the regulated rails to ±15 V and models the display load at TP4. The full powered board, physical meter circuit and strapping connections remain in the standalone SPICE reference. The plug-in uses the two front-panel controls with the signal-dependent soft knee from the circuit. The front Hi-Z jack and stereo-slave indicator are drawn as on the unit. Plug-in stereo presently processes dual mono.
+The Windows runtime links the generated sparse solver to the VST3 through a small C ABI. The full SPICE deck is the source of the circuit and its initial state. The audio profile preserves the 4301 VCA and RMS cell equations, audio amplifier models, control components and loading. It uses closed-loop equivalents for control amplifiers to reduce the number of unknowns in the real-time solve.
 
-The output uses a sample-rate-dependent correction shelf after the nodal solve to match the continuous-time reference's high-frequency response. It has no extra buffering. At 44.1 kHz with a 512-sample host block the worker pipeline reports 1,536 samples (34.8 ms). The Windows workflow compares level and THD at 1 kHz, checks frequency response, and verifies mono and stereo playback against the unpaced solver. Each release ZIP includes the editor capture and the measured data.
-
-## Transport startup correction
-
-This branch waits for worker readiness at activation and allows bounded deadline recovery on rapid host callbacks, without changing circuit equations or reported latency. The release workflow gates packaging on 36 compiled-DLL startup cases at 44.1 kHz (mono/stereo, 256/512 sample blocks, three leading-silence lengths and three startup burst lengths), waveform parity against synchronous rendering, callback deadlines, and existing VST3 checks.
+The Windows workflow tests the built VST3 against the native runtime in mono and stereo at 44.1 kHz with 256- and 512-sample host blocks. It uploads the offline-verified evaluation bundle first, then verifies paced playback.

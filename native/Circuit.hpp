@@ -228,7 +228,7 @@ public:
             if (++nextGuess==static_cast<int>(guesses.size())) nextGuess=0;
             guessCount=std::min(guessCount+1,static_cast<int>(guesses.size()));
         }
-        if (newton(12,0.16) || continueSource(input,slider,levelSet)) {
+        if (newton(12,0.16) || recoverSameStep(input,slider,levelSet) || continueSource(input,slider,levelSet)) {
             accept(false);
             lastInput=input;
         } else if (retry(input,slider,levelSet)) {
@@ -298,9 +298,22 @@ private:
         for (const auto& d : deck.inductance) sampleRhs[d.row]+=history1*d.q1+history2*d.q2;
     }
 
+    bool recoverSameStep(double input,double slider,double levelSet) {
+        // Reject the cached predictor on difficult samples. Solve the same
+        // BDF2 equations from the last converged state with a larger iteration
+        // budget and progressively smaller junction steps. No history changes.
+        for (double limit : {0.16,0.08,0.04}) {
+            std::copy(previous.begin(),previous.end(),x.begin());
+            supply(input,slider,levelSet);
+            prepareHistory();
+            if (newton(96,limit)) return true;
+        }
+        return false;
+    }
+
     bool continueSource(double input,double slider,double levelSet) {
         // Try a numerical continuation before changing the time integration.
-        for (int count : {2,4,8}) {
+        for (int count : {2,4,8,16,32}) {
             std::copy(previous.begin(),previous.end(),x.begin());
             int i=1;
             for (;i<=count;++i) {
@@ -308,7 +321,7 @@ private:
                 // Moving the source also changes the known-voltage
                 // contributions to the linear residual.
                 prepareHistory();
-                if (!newton(16,0.16)) break;
+                if (!newton(48,0.08)) break;
             }
             if (i>count) return true;
         }
@@ -336,7 +349,7 @@ private:
             for (int i=1;i<=count;++i) {
                 supply(std::lerp(lastInput,input,static_cast<double>(i)/count),slider,levelSet);
                 prepareHistory();
-                if (!newton(14,0.16)) {solved=false;break;}
+                if (!newton(48,0.08)) {solved=false;break;}
                 accept(false);
             }
             if (solved) break;
@@ -671,6 +684,7 @@ private:
         for (int iter=0;iter<iterations;++iter) {
             stampStep();
             if (!matrix.solve()) return false;
+            for (double correction : matrix.x) if (!std::isfinite(correction)) return false;
             double maxNode=0, maxBranch=0;
             for (int i=0;i<deck.nodes;++i) maxNode=std::max(maxNode,std::abs(matrix.x[i]));
             for (int i=deck.nodes;i<deck.size;++i) maxBranch=std::max(maxBranch,std::abs(matrix.x[i]));

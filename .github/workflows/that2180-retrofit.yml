@@ -1,0 +1,55 @@
+name: 163X THAT2180 DN137 retrofit audit
+on:
+  push:
+    branches: [163x-that2180-retrofit]
+  workflow_dispatch:
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [stock, no-trim, direct, bias-5k1, fb-47p, fb-22p, hardware-decoupling]
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ngspice poppler-utils python3-numpy
+          python3 tools/prepare_models.py
+          cat circuit/vendor/2180_Macro_01.lib
+      - name: Apply temporary retrofit to runner copy
+        env:
+          VARIANT: ${{ matrix.variant }}
+        run: |
+          python3 - <<'PY'
+          import os,re
+          from pathlib import Path
+          p=Path('circuit/163x-board.inc')
+          b=p.read_text()
+          mode=os.environ['VARIANT']
+          if mode!='stock':
+              b=re.sub(r'(?m)^R(?:9|10|11A|11B) .*\n','',b)
+          if mode in ('direct','bias-5k1','fb-47p','fb-22p','hardware-decoupling'):
+              b=b.replace('VCA_CONTROL_SCALE={6.1/5.9}','VCA_CONTROL_SCALE=1')
+          if mode in ('bias-5k1','fb-47p','fb-22p','hardware-decoupling'):
+              b=b.replace('R13 VCA_VEE VN15 5.6k','R13 VCA_VEE VN15 5.1k')
+          if mode in ('fb-47p','fb-22p'):
+              b=b.replace('C6 VCA_IO OA2O 100p','C6 VCA_IO OA2O '+('47p' if mode=='fb-47p' else '22p'))
+          if mode=='hardware-decoupling':
+              b=re.sub(r'(?m)^(C\d+ V[PN]15 0 )10n$',r'\g<1>100n',b)
+          p.write_text(b)
+          print(b)
+          PY
+      - name: Full circuit harmonics and response
+        run: |
+          for f in 100 1000 5000 10000; do
+            python3 tools/measure.py --frequency "$f" --case 0 4 --case 1 4 --output "measurements/${f}.json" || exit 1
+          done
+          python3 tools/measure.py --small-signal --output measurements/ac.json
+          python3 tools/measure.py --timing --output measurements/timing.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: retrofit-${{ matrix.variant }}
+          path: measurements/

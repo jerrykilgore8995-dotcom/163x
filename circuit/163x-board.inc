@@ -24,10 +24,10 @@ DCR25 0 LED_POWER LED1204A
 RJ1T J1T IN {FRONT ? 0.01 : 1e12}
 RJ1TS J2T IN {FRONT ? 1e12 : 0.01}
 RJ1R J1R 0 {FRONT ? 0.01 : 1e12}
-C1 IN 0 120p
+* C1 removed for hardware-matched New listening mode
 R1 IN IN_AC 1k
-C2 IN_AC OA1P 100n
-R2 OA1P 0 390k
+C2 IN_AC OA1P 1u
+R2 OA1P 0 100k
 * The 1995 board identifies this corresponding resistor as 4.7 kΩ.
 R3 J1R R4TOP 4.7k
 R4A R4TOP OA1M {47k*(1-wiper(HIZTRIM))}

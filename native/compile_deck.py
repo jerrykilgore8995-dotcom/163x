@@ -97,6 +97,10 @@ def expand(lines, prefix="", mapping=None, parent=None):
             if name not in {"bsignal","bmains"}:
                 if orig=="bavg":
                     value = "detector", [prefix+"vsense",node("sym"),node("ref"),node("ct")], [env[k] for k in ("icref","iref","vref","ksq")]
+                elif orig=="bctrlgm":
+                    value = "controlDrive", [node("inp"),node("inm")], [env[k] for k in ("ga","vos","ip","im")]
+                elif orig=="bctrlclamp":
+                    value = "controlClamp", [node("state")], [env[k] for k in ("hi","lo","gc")]
                 elif orig=="bsink":
                     value = "comparator", [node(k) for k in ("out","vn","inm","inp")], []
                 elif orig=="bdrive":

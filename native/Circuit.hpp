@@ -105,7 +105,7 @@ struct Control { int a,b,p,m; double gain; };
 struct DModel { double is,n,cjo,vj,m,tt,fc,bv,ibv; };
 struct Inductance {int row,column; double value,q1=0,q2=0;};
 struct Cubic {int a,b,control;double gain;};
-enum class Behavior {detector,comparator,positiveRegulator,negativeRegulator};
+enum class Behavior {detector,comparator,positiveRegulator,negativeRegulator,controlDrive,controlClamp};
 struct Behavioral {Behavior kind;int a,b;std::array<int,4> input;std::array<double,4> param;};
 struct QModel {
     double is,bf,nf,vaf,ikf,ise,ne,br,nr,var,ikr,isc,nc,cje,vje,mje,cjc,vjc,mjc,tf,tr,fc;
@@ -431,6 +431,19 @@ private:
             double value=0;
             std::array<double,4> slope{};
             switch (d.kind) {
+                case Behavior::controlDrive: {
+                    // R = 1 Meg in the measured reduced op-amp core.
+                    const double raw=p[0]*(a-b-p[1])/1e6;
+                    value=-std::clamp(raw,-p[3],p[2]);
+                    if (raw>-p[3] && raw<p[2]) slope={-p[0]/1e6,p[0]/1e6,0,0};
+                    break;
+                }
+                case Behavior::controlClamp: {
+                    const double high=p[0],low=p[1],g=p[2];
+                    value=g*(std::max(0.,a-high)+std::min(0.,a-low));
+                    slope[0]=(a>high || a<low)?g:0;
+                    break;
+                }
                 case Behavior::detector: {
                     const double raw=a+(b-c)/10000;
                     double input=detectorWeights[0]*raw, inputSlope=detectorWeights[0];

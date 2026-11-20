@@ -3,7 +3,7 @@ name: 163X Old New zero-miss listening build
 on:
   push:
     branches: [163x-4301-blackmer-cells]
-    paths: ['.github/workflows/old-new-build.yml','plugin/Plugin.cpp','plugin/Vst3Smoke.cpp','tools/verify_native.py','circuit/163x-board.inc','native/**']
+    paths: ['.github/workflows/old-new-build.yml','plugin/Plugin.cpp','plugin/Vst3Smoke.cpp','tools/verify_native.py','circuit/163x-board.inc','native/**','tools/reduce_4558.py']
   workflow_dispatch:
 
 jobs:
@@ -27,10 +27,18 @@ jobs:
           sudo apt-get install -y ngspice poppler-utils
           python -m pip install numpy
           python tools/prepare_models.py
-          python tools/native_seed.py build/seed.raw
-          python native/compile_deck.py circuit build/seed.raw build/Deck.hpp --quiet-rails
           python tools/measure.py --case 0 -1.1721462968 --case .45 -1.1721462968 --case 1 -1.1721462968 --output build/spice.json
           python tools/measure.py --small-signal --output build/ac.json
+          if [ "${{ matrix.mode }}" = new ]; then
+            python tools/reduce_4558.py --install --output build/control-4558
+          fi
+          python tools/native_seed.py build/seed.raw
+          python native/compile_deck.py circuit build/seed.raw build/Deck.hpp --quiet-rails
+      - uses: actions/upload-artifact@v4
+        if: always() && matrix.mode == 'new'
+        with:
+          name: control-4558-characterization
+          path: build/control-4558
       - uses: actions/upload-artifact@v4
         with:
           name: compiled-circuit-${{ matrix.mode }}

@@ -117,10 +117,28 @@ if __name__=="__main__":
         (OUT/"static.json").write_text(json.dumps(static_rows))
         if not np.isfinite(threshold) or threshold<-55 or threshold>18:
             raise RuntimeError("invalid fitted threshold; inspect static curve")
+        # Factory-style stimulus: a settled uncompressed baseline, then an
+        # input level 10/20/30 dB above the estimated hard-knee intersection.
+        # Soft knee may already compress at that intersection, so do not
+        # use it as the low-level stimulus. Verify actual low-level gain.
+        unity=float(np.median(y[:4]))
+        candidates=[r for r in static_rows if r["dbu"]<threshold and abs(r["gain_db"]-unity)<=.1]
+        if not candidates:raise RuntimeError("No verified uncompressed baseline")
+        low=max(r["dbu"] for r in candidates)
+        emit(dict(mode=MODE,kind="baseline",low_dbu=low,uncompressed_gain_db=unity,threshold_dbu=threshold))
         for n in (10,20,30):
-            for label,low in [("threshold",threshold),("below_threshold",threshold-5),("precompressed",threshold+8)]:
-                if low+n>18:continue
-                try:rows.append(burst(low,low+n,label))
-                except Exception as e:rows.append(emit(dict(mode=MODE,fixture=label,step=n,error=str(e))))
+            high=threshold+n
+            if high>18:
+                emit(dict(mode=MODE,kind="unavailable",above_threshold_db=n,high_dbu=high,reason="exceeds +18 dBu test ceiling"))
+                continue
+            try:
+                row=burst(low,high,"zero_to_compression_"+str(n))
+                row["above_threshold_db"]=n
+                row["baseline_residual_gr_db"]=row["baseline_db"]+unity
+                row["baseline_valid"]=abs(row["baseline_residual_gr_db"])<=.1
+                row["final_gr_relative_unity_db"]=row["final_db"]+unity
+                emit(row)
+                rows.append(row)
+            except Exception as e:rows.append(emit(dict(mode=MODE,above_threshold_db=n,error=str(e))))
     (OUT/"summary.json").write_text(json.dumps(rows,indent=2))
-    if not any("attack_63_ms" in r for r in rows):raise RuntimeError("no valid burst data")
+    if not any("attack_63_ms" in r and (MODE=="standalone" or r.get("baseline_valid")) for r in rows):raise RuntimeError("no valid burst data")

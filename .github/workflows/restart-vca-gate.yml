@@ -1,0 +1,20 @@
+name: 163X restart VCA gate
+on:
+  push:
+    branches: [163x-2252-vca-restart]
+  workflow_dispatch:
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: sudo apt-get update -qq && sudo apt-get install -y ngspice && pip install numpy
+      - run: python tools/restart_vca_gate.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: restart-vca-gate
+          path: measurements/

@@ -26,7 +26,7 @@ jobs:
           from pathlib import Path
           with ZipFile('that.zip') as z:
               for n in z.namelist():
-                  if '2252' in Path(n).name and n.lower().endswith(('.lib','.cir','.mod')):
+                  if Path(n).name == '4301_Macro_01.lib':
                       p=Path('circuit/vendor')/Path(n).name
                       p.write_bytes(z.read(n))
                       print(p.read_text(errors='replace'))

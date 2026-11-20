@@ -1,0 +1,28 @@
+name: 163X 10 kHz K2 component isolation
+on:
+  push:
+    branches: [163x-k2-component-isolation]
+  workflow_dispatch:
+jobs:
+  isolate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ngspice poppler-utils
+          python -m pip install numpy
+          python tools/prepare_models.py
+      - name: Print exact imported op amp netlists
+        run: |
+          cat circuit/vendor/LF353.MOD circuit/vendor/NE5534.301 circuit/vendor/NJM4558.lib
+      - run: python tools/k2_component_isolation.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: 163x-k2-component-isolation
+          path: measurements/

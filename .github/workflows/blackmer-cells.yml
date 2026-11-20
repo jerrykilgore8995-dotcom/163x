@@ -1,0 +1,31 @@
+name: 163X connected Blackmer cells retrofit
+on:
+  push:
+    branches: [163x-4301-blackmer-cells]
+  workflow_dispatch:
+jobs:
+  measure:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        case: ['line:100','line:1000','line:5000','line:10000','factory:40','factory:1000','factory:10000','timing:10','timing:20','timing:30']
+    env:
+      AUDIT_MODE: connected4301
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: sudo apt-get update -qq && sudo apt-get install -y ngspice poppler-utils && pip install numpy
+      - run: python tools/prepare_models.py
+      - run: |
+          export AUDIT_KIND=$(echo '${{ matrix.case }}' | cut -d: -f1)
+          export AUDIT_CASE=$(echo '${{ matrix.case }}' | cut -d: -f2)
+          python tools/blackmer_cells_audit.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: blackmer-${{ strategy.job-index }}
+          path: measurements/

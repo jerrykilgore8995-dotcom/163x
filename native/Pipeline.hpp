@@ -133,8 +133,8 @@ public:
                 for (int c=0;c<active;++c) {
                     auto& v=voices[c];
                     if (v.completed.load(std::memory_order_acquire)>=need) continue;
-                    v.required.store(need,std::memory_order_release);
-                    while (v.completed.load(std::memory_order_acquire)<need) {
+                    v.required.store(need,std::memory_order_seq_cst);
+                    while (v.completed.load(std::memory_order_seq_cst)<need) {
                         auto ns=std::chrono::duration_cast<std::chrono::nanoseconds>(
                             deadline-std::chrono::steady_clock::now()).count();
                         if (ns<=0) break;
@@ -269,9 +269,9 @@ private:
                     out.aboveThreshold=solver.aboveThreshold();
                 }
                 failed.store(solver.failures(),std::memory_order_relaxed);
-                completed.store(next,std::memory_order_release);
+                completed.store(next,std::memory_order_seq_cst);
 #ifdef _WIN32
-                const auto target=required.load(std::memory_order_acquire);
+                const auto target=required.load(std::memory_order_seq_cst);
                 if (target && next>=target) SetEvent(progress);
 #endif
             }

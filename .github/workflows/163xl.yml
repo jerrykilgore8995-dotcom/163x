@@ -63,7 +63,12 @@ jobs:
         with:
           name: 163XL-measurements
           path: build/163xl-measurements.json
-      - name: Build and host the VST3
+      - uses: actions/cache@v4
+        with:
+          path: build-plugin
+          key: 163xl-cmake-msvc-${{ hashFiles('plugin/**', 'native/Client.hpp') }}
+          restore-keys: 163xl-cmake-msvc-
+      - name: Build and validate the offline VST3
         shell: pwsh
         run: |
           cmake -S plugin -B build-plugin -A x64
@@ -74,16 +79,30 @@ jobs:
           $resources = Join-Path $bundle "Contents/Resources"
           New-Item -ItemType Directory -Force $resources | Out-Null
           Copy-Item build/163xl-native.dll $resources
-          & "build-plugin/Vst3Smoke_artefacts/Release/Vst3Smoke.exe" $bundle 2>&1 | Tee-Object -FilePath smoke.txt
+          & "build-plugin/Vst3Smoke_artefacts/Release/Vst3Smoke.exe" $bundle --offline 2>&1 | Tee-Object -FilePath offline-smoke.txt
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           New-Item -ItemType Directory -Force release | Out-Null
           Copy-Item $bundle release -Recurse
-          Copy-Item 163XL-faceplate.png,smoke.txt,build/163xl-measurements.json,README.md release
+          Copy-Item 163XL-faceplate.png,offline-smoke.txt,build/163xl-measurements.json,README.md release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: 163XL-0.1.0-Windows-x64-VST3-Evaluation
+          path: release
+          if-no-files-found: error
+      - name: Verify real-time playback
+        shell: pwsh
+        run: |
+          $bundle = (Resolve-Path "release/163XL.vst3").Path
+          & "build-plugin/Vst3Smoke_artefacts/Release/Vst3Smoke.exe" $bundle 2>&1 | Tee-Object -FilePath smoke.txt
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          Copy-Item smoke.txt release
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: 163XL-host-diagnostics
-          path: smoke.txt
+          path: |
+            offline-smoke.txt
+            smoke.txt
       - uses: actions/upload-artifact@v4
         with:
           name: 163XL-0.1.0-Windows-x64-VST3

@@ -14,8 +14,9 @@ juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter();
 
 int main(int argc,char** argv) {
     std::cerr<<std::unitbuf;
-    if (argc!=2) {
-        std::cerr<<"Expected one VST3 bundle argument\n";
+    const bool offline=argc==3 && std::string(argv[2])=="--offline";
+    if (argc!=2 && !offline) {
+        std::cerr<<"Expected a VST3 bundle path and optional --offline\n";
         return 2;
     }
     std::cerr<<"Initializing the VST3 host\n";
@@ -88,7 +89,7 @@ int main(int argc,char** argv) {
             return 8;
         }
         reference.stop();
-        vst->setNonRealtime(false);
+        vst->setNonRealtime(offline);
         vst->prepareToPlay(rate,n);
         if (vst->getLatencySamples()!=reference.latency()) {
             std::cerr<<"VST3 latency "<<vst->getLatencySamples()
@@ -104,7 +105,7 @@ int main(int argc,char** argv) {
         double peakError=0,peakCallback=0;
         for (int frame=0;frame<blocks*n;frame+=n) {
             for (int c=0;c<layout.size();++c) block.copyFrom(c,0,input,c,frame,n);
-            clock.waitUntil(start+std::chrono::duration_cast<Clock::duration>(
+            if (!offline) clock.waitUntil(start+std::chrono::duration_cast<Clock::duration>(
                 std::chrono::duration<double>(double(frame)/rate)));
             const auto before=Clock::now();
             vst->processBlock(block,midi);
@@ -120,10 +121,11 @@ int main(int argc,char** argv) {
         }
         vst->releaseResources();
         std::cout<<layout.size()<<" channels, 44.1 kHz / "<<n<<", peak error "<<peakError
-                 <<", mismatched samples "<<differingSamples<<", longest callback "
+                 <<(offline?", offline":", paced")<<", mismatched samples "<<differingSamples<<", longest callback "
                  <<peakCallback<<" ms\n";
-        passed=!differingSamples && peakCallback<1000.0*n/rate && passed;
+        passed=!differingSamples && (offline || peakCallback<1000.0*n/rate) && passed;
     }
+    if (!offline) return passed ? 0 : 10;
     constexpr int n=512;
     if (vst->getTotalNumInputChannels()!=2) return 17;
     // Measure packaged VST3 noise at the factory minimum-compression, -10 level setting.

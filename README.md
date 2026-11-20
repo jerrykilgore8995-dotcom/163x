@@ -4,7 +4,7 @@
 
 ## Install
 
-Download the `163XL-0.1.0-Windows-x64-VST3` artifact from the [163XL GitHub Actions build](https://github.com/jerrykilgore8995-dotcom/163x/actions?query=branch%3A163xl). Copy the complete `163XL.vst3` folder into your VST3 directory. Its `Contents/Resources` directory contains the circuit runtime. The runtime targets an AVX2-capable CPU.
+Download the Windows x64 VST3 artifact from the [163XL GitHub Actions build](https://github.com/jerrykilgore8995-dotcom/163x/actions?query=branch%3A163xl). Copy the complete `163XL.vst3` folder into your VST3 directory. Its `Contents/Resources` directory contains the circuit runtime. The runtime targets an AVX2-capable CPU. The Evaluation artifact passed offline host checks. The artifact without that suffix also passed the paced real-time checks.
 
 The solver processes stereo as dual mono. At 44.1 kHz, the reported latency is 1,536 samples (34.8 ms) at a 512-sample host block and 1,024 samples (23.2 ms) at 256. Digital Input and Output default to 0 dB. Settings provides the optional detector HPF, LP Bypass and Turbocharge. PSU Noise is off by default.
 

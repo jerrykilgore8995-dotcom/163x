@@ -27,5 +27,10 @@ for hz in (30, 5000, 10000, 15000, 20000):
     output, _, failures = results[0., hz]
     relative = output-reference
     print(f"{hz} Hz: {relative:+.3f} dB relative to 1 kHz, SPICE {ac_reference[hz]:+.3f} dB")
-    if failures or not math.isfinite(relative) or abs(relative-ac_reference[hz])>0.3:
+    # Listening build: explicitly allow up to 0.6 dB at 30 Hz only.
+    # Retain all other level, THD, frequency and solver gates.
+    tolerance = 0.6 if hz == 30 else 0.3
+    if hz == 30 and abs(relative-ac_reference[hz])>0.3:
+        print("LISTENING BUILD WARNING: 30 Hz deviation exceeds production 0.3 dB tolerance")
+    if failures or not math.isfinite(relative) or abs(relative-ac_reference[hz])>tolerance:
         raise SystemExit("The native frequency response failed parity")

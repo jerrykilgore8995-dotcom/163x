@@ -1,0 +1,32 @@
+name: DN125 One Knob Squeezer reference
+on:
+  push:
+    branches: [163x-that-dn125]
+  workflow_dispatch:
+jobs:
+  measure:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        hz: [100, 1000, 5000, 10000]
+        kind: [harmonics]
+        include:
+          - hz: 1000
+            kind: curve
+    env:
+      HZ: ${{ matrix.hz }}
+      KIND: ${{ matrix.kind }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: sudo apt-get update -qq && sudo apt-get install -y ngspice && pip install numpy
+      - run: python tools/dn125_measure.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dn125-${{ matrix.kind }}-${{ matrix.hz }}
+          path: measurements/

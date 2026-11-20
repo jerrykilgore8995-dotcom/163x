@@ -7,6 +7,14 @@ jobs:
   audit:
     runs-on: ubuntu-24.04
     timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        hz: [100, 1000, 5000, 10000]
+        mode: [stock, new_ti, new_ti_nofb]
+    env:
+      AUDIT_HZ: ${{ matrix.hz }}
+      AUDIT_MODE: ${{ matrix.mode }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -36,5 +44,5 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: gr-vendor-audit
+          name: gr-vendor-audit-${{ matrix.hz }}-${{ matrix.mode }}
           path: measurements/

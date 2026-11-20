@@ -3,7 +3,7 @@ name: 163X Old New zero-miss listening build
 on:
   push:
     branches: [163x-4301-blackmer-cells]
-    paths: ['.github/workflows/old-new-build.yml','plugin/Plugin.cpp','plugin/Vst3Smoke.cpp','tools/verify_native.py','circuit/163x-board.inc','native/Circuit.hpp']
+    paths: ['.github/workflows/old-new-build.yml','plugin/Plugin.cpp','plugin/Vst3Smoke.cpp','tools/verify_native.py','circuit/163x-board.inc','native/**']
   workflow_dispatch:
 
 jobs:

@@ -14,15 +14,16 @@ juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter();
 
 int main(int argc,char** argv) {
     std::cerr<<std::unitbuf;
-    if (argc!=2) {
+    if (argc!=2 && argc!=3) {
         std::cerr<<"Expected one VST3 bundle argument\n";
         return 2;
     }
     std::cerr<<"Initializing the VST3 host\n";
     juce::ScopedJuceInitialiser_GUI gui;
     const juce::File bundle(juce::String::fromUTF8(argv[1]));
+    const bool newMode=argc==3 && std::string(argv[2])=="new";
     const auto dll=bundle.getChildFile("Contents").getChildFile("Resources")
-        .getChildFile("163x-native.dll").getFullPathName();
+        .getChildFile(newMode?"163x-new-native.dll":"163x-native.dll").getFullPathName();
     juce::AudioPluginFormatManager formats;
     auto format=std::make_unique<juce::VST3PluginFormat>();
     juce::OwnedArray<juce::PluginDescription> descriptions;
@@ -40,6 +41,9 @@ int main(int argc,char** argv) {
         std::cerr<<error<<'\n';
         return 4;
     }
+    bool modeFound=false;
+    for(auto* param:vst->getParameters())if(param->getName(128)=="Circuit Mode"){param->setValueNotifyingHost(newMode?1.f:0.f);modeFound=true;}
+    if(!modeFound)return 15;
     {
         std::cerr<<"Rendering the editor\n";
         std::unique_ptr<juce::AudioProcessor> processor(createPluginFilter());

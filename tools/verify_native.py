@@ -24,19 +24,16 @@ for row in spice_reference:
     if not math.isfinite(thd) or abs(thd - row["THD_K2_K20_pct"]) > 0.02:
         raise SystemExit("The 1 kHz THD failed parity")
 reference = results[0., 1000][0]
+problems=[]
 for hz in (30, 5000, 10000, 15000, 20000):
     output, _, failures = results[0., hz]
     relative = output-reference
-    print(f"{hz} Hz: {relative:+.3f} dB relative to 1 kHz, SPICE {ac_reference[hz]:+.3f} dB")
-    # Listening build: explicitly allow up to 0.6 dB at 30 Hz only.
-    # Retain all other level, THD, frequency and solver gates.
-    tolerance = 0.6 if hz == 30 else 0.3
-    if hz == 30 and abs(relative-ac_reference[hz])>0.3:
-        print("LISTENING BUILD WARNING: 30 Hz deviation exceeds production 0.3 dB tolerance")
+    print(f"{hz} Hz: {relative:+.3f} dB relative to 1 kHz, SPICE {ac_reference[hz]:+.3f} dB, solver failures {failures}",flush=True)
     if failures or not math.isfinite(relative):
-        raise SystemExit("The native frequency response has invalid output or solver failures")
-    if abs(relative-ac_reference[hz])>tolerance:
-        if os.environ.get("LISTENING_BUILD")=="1" and abs(relative)<=1.0:
-            print("LISTENING BUILD WARNING: native/SPICE FR parity discrepancy retained for review")
-        else:
-            raise SystemExit("The native frequency response failed parity")
+        problems.append(f"{hz} Hz: invalid response or {failures} solver failures")
+    if os.environ.get("LISTENING_BUILD")=="1":
+        if abs(relative)>1.0:problems.append(f"{hz} Hz: outside +/-1 dB")
+        if abs(relative-ac_reference[hz])>.3:print("WARNING: SPICE parity discrepancy",flush=True)
+    elif abs(relative-ac_reference[hz])>.3:
+        problems.append(f"{hz} Hz: SPICE parity failure")
+if problems:raise SystemExit("; ".join(problems))

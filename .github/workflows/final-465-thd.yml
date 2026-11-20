@@ -1,0 +1,38 @@
+name: 163X New final full circuit THD
+on:
+  push:
+    branches: [163x-4301-blackmer-cells]
+    paths: ['.github/workflows/final-465-thd.yml']
+  workflow_dispatch:
+jobs:
+  distortion:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        frequency: [100,1000,5000,10000]
+        dbu: ['-8','-4','0','4','8']
+        slider: [0,1]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: sudo apt-get update -qq && sudo apt-get install -y ngspice poppler-utils && pip install numpy
+      - run: python tools/prepare_models.py
+      - name: Validate working circuit values
+        run: |
+          grep -Fx 'R37 TP6 OA4BM 4.65k' circuit/163x-board.inc
+          grep -Fx 'R7 VCA_AC VCA_IN 15k' circuit/163x-board.inc
+          grep -Fx 'R14 VCA_IO OUT_FB 15k' circuit/163x-board.inc
+          grep -Fx 'R34 RMS_IT VN15 2meg' circuit/163x-board.inc
+          grep -Fx 'C15 J4R TIME_SUM 10u' circuit/163x-board.inc
+      - name: Measure connected circuit at unity level-set midpoint
+        run: |
+          python tools/final_465_thd.py --frequency ${{ matrix.frequency }} --level-set 0.5 --case ${{ matrix.slider }} ${{ matrix.dbu }} --jobs 1 --output measurements/result.json || ROBUST=1 python tools/final_465_thd.py --frequency ${{ matrix.frequency }} --level-set 0.5 --case ${{ matrix.slider }} ${{ matrix.dbu }} --jobs 1 --output measurements/result.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: new-thd-${{ matrix.frequency }}-${{ matrix.dbu }}-${{ matrix.slider }}
+          path: measurements/

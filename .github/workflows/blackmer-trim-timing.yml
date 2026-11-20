@@ -1,0 +1,81 @@
+name: 163X fine symmetry and adaptive timing
+on:
+  push:
+    branches: [163x-4301-blackmer-cells]
+    paths: ['.github/workflows/blackmer-trim-timing.yml','tools/blackmer_trim_timing.py']
+  workflow_dispatch:
+jobs:
+  measure:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {"kind":"trim","case":1000,"ref":"ECPLUS","start":0,"end":9,"c16":"330n","c17":"68n","r36":"8.2meg"}
+          - {"kind":"trim","case":1000,"ref":"ECPLUS","start":10,"end":19,"c16":"330n","c17":"68n","r36":"8.2meg"}
+          - {"kind":"trim","case":1000,"ref":"ECPLUS","start":20,"end":29,"c16":"330n","c17":"68n","r36":"8.2meg"}
+          - {"kind":"trim","case":1000,"ref":"ECPLUS","start":30,"end":39,"c16":"330n","c17":"68n","r36":"8.2meg"}
+          - {"kind":"trim","case":1000,"ref":"ECPLUS","start":40,"end":49,"c16":"330n","c17":"68n","r36":"8.2meg"}
+          - {"kind":"trim","case":1000,"ref":"ECPLUS","start":50,"end":59,"c16":"330n","c17":"68n","r36":"8.2meg"}
+          - {"kind":"trim","case":1000,"ref":"ECPLUS","start":60,"end":69,"c16":"330n","c17":"68n","r36":"8.2meg"}
+          - {"kind":"trim","case":1000,"ref":"ECPLUS","start":70,"end":79,"c16":"330n","c17":"68n","r36":"8.2meg"}
+          - {"kind":"trim","case":1000,"ref":"ECPLUS","start":80,"end":89,"c16":"330n","c17":"68n","r36":"8.2meg"}
+          - {"kind":"trim","case":1000,"ref":"ECPLUS","start":90,"end":99,"c16":"330n","c17":"68n","r36":"8.2meg"}
+          - {"kind":"trim","case":1000,"ref":"ECPLUS","start":100,"end":100,"c16":"330n","c17":"68n","r36":"8.2meg"}
+          - {"kind":"trim","case":1000,"ref":"0","start":0,"end":9,"c16":"330n","c17":"68n","r36":"8.2meg"}
+          - {"kind":"trim","case":1000,"ref":"0","start":10,"end":19,"c16":"330n","c17":"68n","r36":"8.2meg"}
+          - {"kind":"trim","case":1000,"ref":"0","start":20,"end":29,"c16":"330n","c17":"68n","r36":"8.2meg"}
+          - {"kind":"trim","case":1000,"ref":"0","start":30,"end":39,"c16":"330n","c17":"68n","r36":"8.2meg"}
+          - {"kind":"trim","case":1000,"ref":"0","start":40,"end":49,"c16":"330n","c17":"68n","r36":"8.2meg"}
+          - {"kind":"trim","case":1000,"ref":"0","start":50,"end":59,"c16":"330n","c17":"68n","r36":"8.2meg"}
+          - {"kind":"trim","case":1000,"ref":"0","start":60,"end":69,"c16":"330n","c17":"68n","r36":"8.2meg"}
+          - {"kind":"trim","case":1000,"ref":"0","start":70,"end":79,"c16":"330n","c17":"68n","r36":"8.2meg"}
+          - {"kind":"trim","case":1000,"ref":"0","start":80,"end":89,"c16":"330n","c17":"68n","r36":"8.2meg"}
+          - {"kind":"trim","case":1000,"ref":"0","start":90,"end":99,"c16":"330n","c17":"68n","r36":"8.2meg"}
+          - {"kind":"trim","case":1000,"ref":"0","start":100,"end":100,"c16":"330n","c17":"68n","r36":"8.2meg"}
+          - {"kind":"timing","case":10,"ref":"ECPLUS","start":0,"end":0,"c16":"330n","c17":"68n","r36":"8.2meg"}
+          - {"kind":"timing","case":10,"ref":"ECPLUS","start":0,"end":0,"c16":"680n","c17":"68n","r36":"8.2meg"}
+          - {"kind":"timing","case":10,"ref":"ECPLUS","start":0,"end":0,"c16":"1u","c17":"68n","r36":"8.2meg"}
+          - {"kind":"timing","case":10,"ref":"ECPLUS","start":0,"end":0,"c16":"330n","c17":"150n","r36":"8.2meg"}
+          - {"kind":"timing","case":10,"ref":"ECPLUS","start":0,"end":0,"c16":"330n","c17":"330n","r36":"8.2meg"}
+          - {"kind":"timing","case":10,"ref":"ECPLUS","start":0,"end":0,"c16":"330n","c17":"68n","r36":"4.7meg"}
+          - {"kind":"timing","case":20,"ref":"ECPLUS","start":0,"end":0,"c16":"330n","c17":"68n","r36":"8.2meg"}
+          - {"kind":"timing","case":20,"ref":"ECPLUS","start":0,"end":0,"c16":"680n","c17":"68n","r36":"8.2meg"}
+          - {"kind":"timing","case":20,"ref":"ECPLUS","start":0,"end":0,"c16":"1u","c17":"68n","r36":"8.2meg"}
+          - {"kind":"timing","case":20,"ref":"ECPLUS","start":0,"end":0,"c16":"330n","c17":"150n","r36":"8.2meg"}
+          - {"kind":"timing","case":20,"ref":"ECPLUS","start":0,"end":0,"c16":"330n","c17":"330n","r36":"8.2meg"}
+          - {"kind":"timing","case":20,"ref":"ECPLUS","start":0,"end":0,"c16":"330n","c17":"68n","r36":"4.7meg"}
+          - {"kind":"timing","case":30,"ref":"ECPLUS","start":0,"end":0,"c16":"330n","c17":"68n","r36":"8.2meg"}
+          - {"kind":"timing","case":30,"ref":"ECPLUS","start":0,"end":0,"c16":"680n","c17":"68n","r36":"8.2meg"}
+          - {"kind":"timing","case":30,"ref":"ECPLUS","start":0,"end":0,"c16":"1u","c17":"68n","r36":"8.2meg"}
+          - {"kind":"timing","case":30,"ref":"ECPLUS","start":0,"end":0,"c16":"330n","c17":"150n","r36":"8.2meg"}
+          - {"kind":"timing","case":30,"ref":"ECPLUS","start":0,"end":0,"c16":"330n","c17":"330n","r36":"8.2meg"}
+          - {"kind":"timing","case":30,"ref":"ECPLUS","start":0,"end":0,"c16":"330n","c17":"68n","r36":"4.7meg"}
+    env:
+      AUDIT_MODE: fine4301
+      AUDIT_KIND: ${{ matrix.kind }}
+      AUDIT_CASE: ${{ matrix.case }}
+      SYM_REF: ${{ matrix.ref }}
+      TRIM_START: ${{ matrix.start }}
+      TRIM_END: ${{ matrix.end }}
+      C16: ${{ matrix.c16 }}
+      C17: ${{ matrix.c17 }}
+      R36: ${{ matrix.r36 }}
+      RMS_R: '30k'
+      TIME_R: '1.65meg'
+      TIME_C: '10u'
+      TRIM: '0.5'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: sudo apt-get update -qq && sudo apt-get install -y ngspice poppler-utils && pip install numpy
+      - run: python tools/prepare_models.py
+      - run: python tools/blackmer_trim_timing.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trim-timing-${{ strategy.job-index }}
+          path: measurements/

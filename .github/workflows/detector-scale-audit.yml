@@ -1,0 +1,51 @@
+name: 163X detector scaling validation
+on:
+  push:
+    branches: [163x-4301-blackmer-cells]
+    paths: ['tools/detector_scale_audit.py','.github/workflows/detector-scale-audit.yml']
+  workflow_dispatch:
+jobs:
+  measure:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {"variant":"baseline","target":"10","high":"8"}
+          - {"variant":"baseline","target":"20","high":"8"}
+          - {"variant":"baseline","target":"30","high":"8"}
+          - {"variant":"baseline","target":"max","high":"8"}
+          - {"variant":"scale_4k75","target":"10","high":"8"}
+          - {"variant":"scale_4k75","target":"20","high":"8"}
+          - {"variant":"scale_4k75","target":"30","high":"8"}
+          - {"variant":"scale_4k75","target":"max","high":"8"}
+          - {"variant":"scale_4k53","target":"10","high":"8"}
+          - {"variant":"scale_4k53","target":"20","high":"8"}
+          - {"variant":"scale_4k53","target":"30","high":"8"}
+          - {"variant":"scale_4k53","target":"max","high":"8"}
+          - {"variant":"feedback_22M","target":"10","high":"8"}
+          - {"variant":"feedback_22M","target":"20","high":"8"}
+          - {"variant":"feedback_22M","target":"30","high":"8"}
+          - {"variant":"feedback_22M","target":"max","high":"8"}
+          - {"variant":"baseline","target":"max","high":"18"}
+          - {"variant":"scale_4k75","target":"max","high":"18"}
+          - {"variant":"scale_4k53","target":"max","high":"18"}
+    env:
+      MODE: connected
+      AUDIT_VARIANT: ${{ matrix.variant }}
+      TARGET: ${{ matrix.target }}
+      HIGH_DBU: ${{ matrix.high }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: sudo apt-get update -qq && sudo apt-get install -y ngspice poppler-utils && pip install numpy
+      - run: python tools/prepare_models.py
+      - run: python tools/detector_scale_audit.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: detector-${{ matrix.variant }}-${{ matrix.target }}-${{ matrix.high }}
+          path: measurements/

@@ -1,0 +1,75 @@
+name: 163X 15k VCA input and IV feedback audit
+on:
+  push:
+    branches: [163x-vca-15k-audit]
+  workflow_dispatch:
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        hz: [100, 1000, 5000, 10000]
+        mode: [stock, stock_15k, stock_cap100, stock_cap100_15k, new_ti_inputload_cap100, new_ti_inputload_cap100_15k]
+        kind: [line, gr30, factory]
+        exclude:
+          - kind: factory
+            hz: 100
+          - kind: factory
+            hz: 5000
+        include:
+          - hz: 40
+            mode: stock
+            kind: factory
+          - hz: 40
+            mode: stock_15k
+            kind: factory
+          - hz: 40
+            mode: stock_cap100
+            kind: factory
+          - hz: 40
+            mode: stock_cap100_15k
+            kind: factory
+          - hz: 40
+            mode: new_ti_inputload_cap100
+            kind: factory
+          - hz: 40
+            mode: new_ti_inputload_cap100_15k
+            kind: factory
+    env:
+      AUDIT_HZ: ${{ matrix.hz }}
+      AUDIT_KIND: ${{ matrix.kind }}
+      AUDIT_MODE: ${{ matrix.mode }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ngspice poppler-utils
+          python -m pip install numpy
+          python tools/prepare_models.py
+          curl -fL --retry 3 https://www.ti.com/lit/zip/sloj053 -o ti.zip
+          unzip -jo ti.zip RC4558.301 -d circuit/vendor
+          curl -fL --retry 3 https://thatcorp.com/wp-content/uploads/2020/11/THATMacroModels-Rev05.zip -o that.zip
+          unzip -Z1 that.zip
+          python - <<'PY'
+          from zipfile import ZipFile
+          from pathlib import Path
+          with ZipFile('that.zip') as z:
+              for n in z.namelist():
+                  if Path(n).name == '4301_Macro_01.lib':
+                      p=Path('circuit/vendor')/Path(n).name
+                      p.write_bytes(z.read(n))
+                      print(p.read_text(errors='replace'))
+          PY
+          cat circuit/vendor/RC4558.301
+      - run: python -m py_compile tools/vca_15k_audit.py
+      - run: python tools/vca_15k_audit.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vca15k-${{ matrix.kind }}-${{ matrix.hz }}-${{ matrix.mode }}
+          path: measurements/

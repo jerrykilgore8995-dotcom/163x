@@ -100,8 +100,10 @@ def main():
     cases = [(RATE, f, -55, 0) for f in FREQUENCIES]
     cases += [(RATE, f, 4, slider) for f in (100, 1000, 5000, 10000) for slider in (0, .45, 1)]
     cases += [(192000, f, 4, 1) for f in (5000, 10000)]
+    transfer_cases = [(RATE, 1000, level, 1) for level in (-65, -55, -45, -35, -25, -15, -5, 0, 4, 8, 12, 16, 18)]
     with ThreadPoolExecutor(max_workers=args.jobs) as pool:
         tones = list(pool.map(lambda case: tone(exe, *case), cases))
+        transfer = list(pool.map(lambda case: tone(exe, *case), transfer_cases))
         timings = list(pool.map(lambda row: timing(exe, *row), [(10, 15), (20, 5), (30, 3)]))
     response, distortion = tones[:len(FREQUENCIES)], tones[len(FREQUENCIES):]
     native_ref = next(row["gain_dB"] for row in response if row["frequency_Hz"] == 1000)
@@ -113,13 +115,18 @@ def main():
             row["spice_relative_dB"] = reference[hz]["relative_dB"]
             row["spice_phase_deg"] = reference[hz]["phase_deg"]
             row["phase_error_deg"] = (row["phase_deg"] - row["spice_phase_deg"] + 180) % 360 - 180
-    report = {"frequency_response": response, "line_level_distortion": distortion, "timing": timings}
+    for row in transfer:
+        row["output_dBu"] = row["input_dBu"] + row["gain_dB"]
+    report = {
+        "frequency_response": response, "line_level_distortion": distortion, "timing": timings,
+        "max_compression_transfer": transfer,
+    }
     args.report.parent.mkdir(parents=True, exist_ok=True)
     args.report.write_text(json.dumps(report, indent=2, allow_nan=False) + "\n")
     for row in timings:
         print(json.dumps(row), flush=True)
     problems = []
-    if any(row["solver_failures"] for row in tones + timings):
+    if any(row["solver_failures"] for row in tones + timings + transfer):
         problems.append("One or more native solves failed")
     if any(abs(row["relative_dB"]) > 1 for row in response):
         problems.append("Frequency response exceeded ±1 dB between 20 Hz and 20 kHz")
@@ -127,6 +134,20 @@ def main():
         problems.append("Phase differed from the SPICE circuit by more than 4 degrees")
     if any(row["thd_through_20k_pct"] > .2 for row in distortion if row["frequency_Hz"] == 1000):
         problems.append("1 kHz THD exceeded 0.2% at +4 dBu")
+    output_steps = np.diff([row["output_dBu"] for row in transfer])
+    if min(output_steps) < -.02:
+        problems.append("Output dropped as input increased at maximum Compression")
+    if any(abs(row["measured_GR_dB"] - row["target_GR_dB"]) > .2 for row in timings):
+        problems.append("A timing burst missed its requested gain reduction")
+    if any(row["release_tail_slope_dB_s"] is None or row["release_mid_slope_dB_s"] is None
+           or row["release_tail_slope_dB_s"] >= row["release_mid_slope_dB_s"] for row in timings):
+        problems.append("A recovery failed to taper through the soft knee")
+    if any(row["attack_63_ms"] is None or abs(row["attack_63_ms"] - row["attack_target_ms"]) > limit
+           for row, limit in zip(timings, (2, 2, .8), strict=True)):
+        problems.append("A burst missed the attack window")
+    deep_slope = timings[-1]["release_mid_slope_dB_s"]
+    if deep_slope is None or abs(deep_slope - RECOVERY_RATE) > 10:
+        problems.append("30 dB mid-release missed the 125 dB/s window")
     if problems:
         raise SystemExit("; ".join(problems))
 

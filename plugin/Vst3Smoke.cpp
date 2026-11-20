@@ -52,9 +52,11 @@ int main(int argc,char** argv) {
         juce::FileOutputStream png(path);
         if (!png.openedOk() || !juce::PNGImageFormat().writeImageToStream(image,png)) return 5;
     }
-    constexpr int rate=44100,n=512,blocks=(8*rate/n);
+    constexpr int rate=44100;
     bool passed=true;
-    for (const auto layout : {juce::AudioChannelSet::mono(),juce::AudioChannelSet::stereo()}) {
+    for (const auto [channels,n] : {std::pair{1,512},std::pair{2,512},std::pair{1,256},std::pair{2,256}}) {
+        const auto layout=channels==1 ? juce::AudioChannelSet::mono() : juce::AudioChannelSet::stereo();
+        const int blocks=8*rate/n;
         juce::AudioProcessor::BusesLayout buses;
         buses.inputBuses.add(layout);
         buses.outputBuses.add(layout);
@@ -117,11 +119,13 @@ int main(int argc,char** argv) {
             }
         }
         vst->releaseResources();
-        std::cout<<layout.size()<<" channels, 44.1 kHz / 512, peak error "<<peakError
+        std::cout<<layout.size()<<" channels, 44.1 kHz / "<<n<<", peak error "<<peakError
                  <<", mismatched samples "<<differingSamples<<", longest callback "
                  <<peakCallback<<" ms\n";
         passed=!differingSamples && peakCallback<1000.0*n/rate && passed;
     }
+    constexpr int n=512;
+    if (vst->getTotalNumInputChannels()!=2) return 17;
     // Measure packaged VST3 noise at the factory minimum-compression, -10 level setting.
     juce::AudioProcessorParameter* noiseParam=nullptr;
     juce::AudioProcessorParameter* compParam=nullptr;

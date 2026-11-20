@@ -1,0 +1,46 @@
+name: DN125 RMS root cause isolation
+on:
+  push:
+    branches: [163x-that-dn125]
+    paths: ['.github/workflows/dn125-rms-root.yml']
+  workflow_dispatch:
+jobs:
+  isolate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {fixture: isolated, more: '0', startup: 'normal'}
+          - {fixture: isolated, more: '0', startup: 'rails'}
+          - {fixture: isolated, more: '0', startup: 'ct1.3'}
+          - {fixture: isolated, more: '0', startup: 'ct-13.7'}
+          - {fixture: full, more: '0', startup: 'normal'}
+          - {fixture: full, more: '0', startup: 'rails'}
+          - {fixture: full, more: '0', startup: 'ct1.3'}
+          - {fixture: full, more: '0', startup: 'ct-13.7'}
+          - {fixture: full, more: '0.5', startup: 'normal'}
+          - {fixture: full, more: '0.5', startup: 'rails'}
+          - {fixture: full, more: '0.5', startup: 'ct1.3'}
+          - {fixture: full, more: '0.5', startup: 'ct-13.7'}
+          - {fixture: full, more: '1', startup: 'normal'}
+          - {fixture: full, more: '1', startup: 'rails'}
+          - {fixture: full, more: '1', startup: 'ct1.3'}
+          - {fixture: full, more: '1', startup: 'ct-13.7'}
+    env:
+      FIXTURE: ${{ matrix.fixture }}
+      MORE: ${{ matrix.more }}
+      STARTUP: ${{ matrix.startup }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: sudo apt-get update -qq && sudo apt-get install -y ngspice && pip install numpy
+      - run: python tools/dn125_rms_root.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rms-root-${{ strategy.job-index }}
+          path: measurements/

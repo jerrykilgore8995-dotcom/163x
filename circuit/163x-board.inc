@@ -39,13 +39,12 @@ R5 TP1 TAP 1k
 R6 TAP ZCLAMP 2.2k
 DCR1 ZMID ZCLAMP RD9V1EB2
 DCR2 ZMID 0 RD9V1EB2
-* Audio path; pin 4 is unconnected on the pretrimmed 2180B.
-* The voltage and current sources transform control voltage and loading.
-* NEC uPC1252HA2: 5.9 mV/dB typical. THAT2180B: 6.1 mV/dB typical.
+* 4301 VCA: separate symmetry trim from EC+; reference to grounded EC-.
+* No artificial voltage or loading scaling.
 C5 TAP VCA_AC 3.3u
 R7 VCA_AC VCA_IN 18k
 R8 TP2 ECPLUS 80.6
-R9 ECPLUS VCA_TRIM 51
+R9 0 VCA_TRIM 51
 R10 VCA_TRIM R11W 300k
 R11A VP15 R11W {50k*(1-wiper(VCATRIM))}
 R11B R11W VN15 {50k*wiper(VCATRIM)}

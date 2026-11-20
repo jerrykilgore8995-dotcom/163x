@@ -1,7 +1,7 @@
 * AKG/dbx 163X board, transcribed from the one-page service drawing.
 * Two instances and the J4 connection reproduce master/slave wiring.
 * J1/J2 normal contacts are represented by their connected plug state.
-.subckt DBX163X J1T J2T J3T J4T J4R VA VB params: FRONT=0 SLAVE=0 MORE=0.45 LEVEL=0.5 HIZTRIM=0.5 VCATRIM=0.5 RMSZERO=0.015 RMSSYM=0.218
+.subckt DBX163X J1T J2T J3T J4T J4R VA VB params: FRONT=0 SLAVE=0 MORE=0.45 LEVEL=0.5 HIZTRIM=0.5 VCATRIM=0.52 RMSZERO=0.015 RMSSYM=0.218
 .func wiper(x) {min(0.99999,max(0.00001,x))}
 * PSU secondary, bridge, reservoir, local regulators and fault-free earth bond.
 C26 VB 0 10n
@@ -39,12 +39,12 @@ R5 TP1 TAP 1k
 R6 TAP ZCLAMP 2.2k
 DCR1 ZMID ZCLAMP RD9V1EB2
 DCR2 ZMID 0 RD9V1EB2
-* 4301 VCA: separate symmetry trim from EC+; reference to grounded EC-.
+* 4301 VCA: SYM tracks EC+ via 51 ohms; measured K2 null at 52%.
 * No artificial voltage or loading scaling.
 C5 TAP VCA_AC 3.3u
 R7 VCA_AC VCA_IN 18k
 R8 TP2 ECPLUS 80.6
-R9 0 VCA_TRIM 51
+R9 ECPLUS VCA_TRIM 51
 R10 VCA_TRIM R11W 300k
 R11A VP15 R11W {50k*(1-wiper(VCATRIM))}
 R11B R11W VN15 {50k*wiper(VCATRIM)}
@@ -70,8 +70,8 @@ C16 TP11 J4R 330n
 C17 TIME_SUM OA1BO 68n
 DCR6 TIME_SUM TP11 D1N4148
 DCR7 TP11 TIME_SUM D1N4148
-R28 RMS_AC RMS_IN 62k
-R34 RMS_IT VN15 2meg
+R28 RMS_AC RMS_IN 30k
+R34 RMS_IT VN15 1.65meg
 R35 OA1BO TP11 220
 R36 TIME_SUM TP11 8.2meg
 XIC2 RMS_IN RMS_IT J4R TP6 VN15 VP15 0 4301RMS

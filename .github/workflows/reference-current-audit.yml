@@ -1,0 +1,32 @@
+name: 163X reference and current audit
+on:
+  push:
+    branches: [163x-4301-blackmer-cells]
+    paths: ['tools/reference_current_audit.py','.github/workflows/reference-current-audit.yml']
+  workflow_dispatch:
+jobs:
+  measure:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [baseline, original_R37, reference_R28]
+        target: ['10','20','30','max']
+    env:
+      MODE: connected
+      AUDIT_VARIANT: ${{ matrix.variant }}
+      TARGET: ${{ matrix.target }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: sudo apt-get update -qq && sudo apt-get install -y ngspice poppler-utils && pip install numpy
+      - run: python tools/prepare_models.py
+      - run: python tools/reference_current_audit.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: reference-${{ matrix.variant }}-${{ matrix.target }}
+          path: measurements/

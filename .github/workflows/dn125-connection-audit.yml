@@ -1,0 +1,30 @@
+name: DN125 physical pin and transfer validation
+on:
+  push:
+    branches: [163x-that-dn125]
+    paths: ['.github/workflows/dn125-connection-audit.yml']
+  workflow_dispatch:
+jobs:
+  trace:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        more: ['0','0.2','0.4','0.6','0.8','1']
+        direction: [up,down]
+    env:
+      MORE: ${{ matrix.more }}
+      DIRECTION: ${{ matrix.direction }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: sudo apt-get update -qq && sudo apt-get install -y ngspice && pip install numpy
+      - run: python tools/dn125_connection_audit.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trace-${{ matrix.more }}-${{ matrix.direction }}
+          path: measurements/

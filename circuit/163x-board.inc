@@ -42,7 +42,7 @@ DCR2 ZMID 0 RD9V1EB2
 * 4301 VCA: SYM tracks EC+ via 51 ohms; measured K2 null at 52%.
 * No artificial voltage or loading scaling.
 C5 TAP VCA_AC 3.3u
-R7 VCA_AC VCA_IN 18k
+R7 VCA_AC VCA_IN 15k
 R8 TP2 ECPLUS 80.6
 R9 ECPLUS VCA_TRIM 51
 R10 VCA_TRIM R11W 300k
@@ -52,7 +52,7 @@ R12 ECPLUS 0 49.9
 C34 ECPLUS 0 1n
 VVC_SENSE ECPLUS VCA_EC 0
 XIC1 VCA_IN VCA_EC 0 VCA_TRIM VP15 VN15 VCA_IO 0 4301VCA
-R14 VCA_IO OUT_FB 20k
+R14 VCA_IO OUT_FB 15k
 R15 OA2P 0 20k
 R16 OA2O OUT_FB 22
 * The 1995 board labels the corresponding out-of-loop resistor R42, 22 Ω.

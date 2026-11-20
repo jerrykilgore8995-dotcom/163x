@@ -14,7 +14,7 @@ VENDOR = ROOT / "circuit" / "vendor"
 MODELS = {
     "LF353.MOD": "https://www.ti.com/lit/zip/snom253",
     "NE5534.301": "https://www.ti.com/lit/zip/sloj049",
-    "2180_Macro_01.lib": "https://thatcorp.com/wp-content/uploads/2020/11/THATMacroModels-Rev05.zip",
+    "4301_Macro_01.lib": "https://thatcorp.com/wp-content/uploads/2020/11/THATMacroModels-Rev05.zip",
 }
 NJM_REPORT = (
     "https://toucy.sakura.ne.jp/datas/Simulation/LTspice/JRC_Macro/"
